@@ -31,9 +31,9 @@
  *
  ****************************************************************************/
 
-#include <poll.h>
 #include <signal.h>
 #include <stdio.h>
+#include <sys/epoll.h>
 
 #include <linux/videodev2.h>
 #include <opencv2/opencv.hpp>
@@ -45,6 +45,7 @@
 
 #include "config.h"
 #include "camera.h"
+#include "log.h"
 
 using namespace cv;
 
@@ -71,6 +72,7 @@ struct {
 static const char *default_device = "/dev/video2";
 
 static bool should_run;
+static int epollfd;
 
 static void exit_signal_handler(int signum)
 {
@@ -90,26 +92,24 @@ static void signal_handlers_setup(void)
     sigaction(SIGPIPE, &sa, NULL);
 }
 
-static void loop(int fd)
+static void loop(void)
 {
-	struct pollfd desc[1];
+	const int max_events = 8;
+	struct epoll_event events[max_events];
 
 	signal_handlers_setup();
 	should_run = true;
 
-	desc[0].events = POLLIN;
-	desc[0].fd = fd;
-	desc[0].revents = 0;
-
 	while (should_run) {
-		int ret = poll(desc, sizeof(desc) / sizeof(struct pollfd), -1);
+		int ret = epoll_wait(epollfd, events, max_events, -1);
 		if (ret < 1) {
 			continue;
 		}
 
-		for (int i = 0; ret && i < (sizeof(desc) / sizeof(struct pollfd)); i++, ret--) {
-			if (desc[i].revents & POLLIN) {
-				camera_frame_read(desc[i].fd);
+		for (int i = 0; ret; i++, ret--) {
+			Pollable *p = static_cast<Pollable *>(events[i].data.ptr);
+			if (events[i].events & EPOLLIN) {
+				p->handle_read();
 			}
 		}
 	}
@@ -123,49 +123,109 @@ static void image_show(const void *img, size_t len)
 }
 #endif
 
-static void video_callback(int fd, const void *img, size_t len, void *data)
+static void video_callback(const void *img, size_t len, void *data)
 {
 #if DEBUG_LEVEL
 	image_show(img, len);
 #endif
 }
 
+static int fd_add(int fd, void *data, int events)
+{
+    struct epoll_event epev = { };
+
+    epev.events = events;
+    epev.data.ptr = data;
+
+    if (epoll_ctl(epollfd, EPOLL_CTL_ADD, fd, &epev) < 0) {
+        ERROR("Could not add fd to epoll.");
+        return -1;
+    }
+
+    return 0;
+}
+
+static int fd_del(int fd)
+{
+	if (epoll_ctl(epollfd, EPOLL_CTL_DEL, fd, NULL) < 0) {
+		ERROR("Could not remove fd from epoll");
+		return -1;
+	}
+
+	return 0;
+}
+
+static int fd_mod(int fd, void *data, int events)
+{
+    struct epoll_event epev = { };
+
+    epev.events = events;
+    epev.data.ptr = data;
+
+    if (epoll_ctl(epollfd, EPOLL_CTL_MOD, fd, &epev) < 0) {
+        ERROR("Could not mod fd");
+        return -1;
+    }
+
+    return 0;
+}
+
 int main()
 {
+	Camera *camera;
 	OpticalFlowOpenCV *optical_flow;
+	int ret;
 
-	int fd = camera_open(default_device);
-	if (fd == -1) {
-		goto open_error;
+	camera = new Camera(default_device);
+	if (!camera) {
+		ERROR("No memory to instantiate Camera");
+		return -1;
 	}
-	if (camera_init(fd, DEFAULT_DEVICE_ID, DEFAULT_IMG_WIDTH,
-			DEFAULT_IMG_HEIGHT, DEFAULT_PIXEL_FORMAT)) {
-		goto init_error;
+	ret = camera->init(DEFAULT_DEVICE_ID, DEFAULT_IMG_WIDTH, DEFAULT_IMG_HEIGHT, DEFAULT_PIXEL_FORMAT);
+	if (ret) {
+		ERROR("Unable to initialize camera");
+		goto camera_init_error;
 	}
-	camera_callback_set(video_callback, NULL);
+	camera->callback_set(video_callback, NULL);
+
+	optical_flow = new OpticalFlowOpenCV(0, 0, 0);
+	if (!optical_flow) {
+		ERROR("No memory to instantiate OpticalFlowOpenCV");
+		goto optical_memory_error;
+	}
+
+	epollfd = epoll_create1(EPOLL_CLOEXEC);
+	if (epollfd == -1) {
+		ERROR("Unable to create epoll");
+		goto epoll_error;
+	}
+
+	fd_add(camera->_fd, camera, EPOLLIN);
 
 #if DEBUG_LEVEL
 	namedWindow(window_name, WINDOW_AUTOSIZE);
 	startWindowThread();
 #endif
 
-	optical_flow = new OpticalFlowOpenCV(0, 0, 0);
-
-	loop(fd);
-
-	camera_shutdown(fd);
-	camera_close(fd);
-
-	delete optical_flow;
+	loop();
 
 #if DEBUG_LEVEL
 	destroyAllWindows();
 #endif
 
+	fd_del(camera->_fd);
+
+	delete optical_flow;
+	camera->shutdown();
+	delete camera;
+
 	return 0;
 
-init_error:
-	camera_close(fd);
-open_error:
+epoll_error:
+	delete optical_flow;
+optical_memory_error:
+	camera->shutdown();
+camera_init_error:
+	delete camera;
 	return -1;
 }
