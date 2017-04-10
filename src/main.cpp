@@ -38,13 +38,12 @@
 #include <linux/videodev2.h>
 #include <opencv2/opencv.hpp>
 
-#include <mavlink.h>
-
 #include <flow_opencv.hpp>
 #include <flow_px4.hpp>
 
 #include "config.h"
 #include "camera.h"
+#include "mavlink_udp.h"
 #include "log.h"
 
 using namespace cv;
@@ -173,6 +172,7 @@ static int fd_mod(int fd, void *data, int events)
 int main()
 {
 	Camera *camera;
+	Mavlink_UDP *mavlink;
 	OpticalFlowOpenCV *optical_flow;
 	int ret;
 
@@ -188,6 +188,17 @@ int main()
 	}
 	camera->callback_set(video_callback, NULL);
 
+	mavlink = new Mavlink_UDP();
+	if (!mavlink) {
+		ERROR("No memory to instantiate Mavlink_UDP");
+		goto mavlink_memory_error;
+	}
+	ret = mavlink->init("127.0.0.1", 14555);
+	if (ret) {
+		ERROR("Unable to initialize mavlink");
+		goto mavlink_init_error;
+	}
+
 	optical_flow = new OpticalFlowOpenCV(0, 0, 0);
 	if (!optical_flow) {
 		ERROR("No memory to instantiate OpticalFlowOpenCV");
@@ -201,6 +212,7 @@ int main()
 	}
 
 	fd_add(camera->_fd, camera, EPOLLIN);
+	fd_add(mavlink->_fd, mavlink, EPOLLIN);
 
 #if DEBUG_LEVEL
 	namedWindow(window_name, WINDOW_AUTOSIZE);
@@ -214,8 +226,10 @@ int main()
 #endif
 
 	fd_del(camera->_fd);
+	fd_del(mavlink->_fd);
 
 	delete optical_flow;
+	delete mavlink;
 	camera->shutdown();
 	delete camera;
 
@@ -224,6 +238,9 @@ int main()
 epoll_error:
 	delete optical_flow;
 optical_memory_error:
+mavlink_init_error:
+	delete mavlink;
+mavlink_memory_error:
 	camera->shutdown();
 camera_init_error:
 	delete camera;
