@@ -16,7 +16,10 @@ add_custom_command(
 )
 add_custom_target(mavlink-c ALL DEPENDS mavlink-c-stamp)
 
+add_subdirectory(modules/OpticalFlow)
+
 add_executable(aero-optical-flow src/main.cpp src/camera.cpp mavlink-c-stamp)
 target_include_directories(aero-optical-flow PUBLIC ${CMAKE_BINARY_DIR}/include/mavlink/${MAVLINK_DIALECT})
 target_link_libraries(aero-optical-flow ${OpenCV_LIBS})
+target_link_libraries(aero-optical-flow OpticalFlow)
 install(TARGETS aero-optical-flow DESTINATION bin)

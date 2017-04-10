@@ -40,6 +40,9 @@
 
 #include <mavlink.h>
 
+#include <flow_opencv.hpp>
+#include <flow_px4.hpp>
+
 #include "config.h"
 #include "camera.h"
 
@@ -129,6 +132,8 @@ static void video_callback(int fd, const void *img, size_t len, void *data)
 
 int main()
 {
+	OpticalFlowOpenCV *optical_flow;
+
 	int fd = camera_open(default_device);
 	if (fd == -1) {
 		goto open_error;
@@ -144,10 +149,14 @@ int main()
 	startWindowThread();
 #endif
 
+	optical_flow = new OpticalFlowOpenCV(0, 0, 0);
+
 	loop(fd);
 
 	camera_shutdown(fd);
 	camera_close(fd);
+
+	delete optical_flow;
 
 #if DEBUG_LEVEL
 	destroyAllWindows();
