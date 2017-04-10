@@ -38,13 +38,12 @@
 #include <linux/videodev2.h>
 #include <opencv2/opencv.hpp>
 
-#include <mavlink.h>
-
 #include <flow_opencv.hpp>
 #include <flow_px4.hpp>
 
 #include "config.h"
 #include "camera.h"
+#include "mavlink_udp.h"
 #include "log.h"
 
 using namespace cv;
@@ -144,8 +143,9 @@ static void camera_callback(const void *img, size_t len, void *data)
 int main()
 {
 	Camera *camera;
+	Mavlink_UDP *mavlink;
 	OpticalFlowOpenCV *optical_flow;
-	Pollable *pollables[1];
+	Pollable *pollables[2];
 	int ret;
 
 	camera = new Camera(default_device);
@@ -157,6 +157,17 @@ int main()
 	if (ret) {
 		ERROR("Unable to initialize camera");
 		goto camera_init_error;
+	}
+
+	mavlink = new Mavlink_UDP();
+	if (!mavlink) {
+		ERROR("No memory to instantiate Mavlink_UDP");
+		goto mavlink_memory_error;
+	}
+	ret = mavlink->init("127.0.0.1", 14555);
+	if (ret) {
+		ERROR("Unable to initialize mavlink");
+		goto mavlink_init_error;
 	}
 
 	optical_flow = new OpticalFlowOpenCV(0, 0, 0);
@@ -172,19 +183,24 @@ int main()
 #endif
 
 	pollables[0] = camera;
-	loop(pollables, 1);
+	pollables[1] = mavlink;
+	loop(pollables, 2);
 
 #if DEBUG_LEVEL
 	destroyAllWindows();
 #endif
 
 	delete optical_flow;
+	delete mavlink;
 	camera->shutdown();
 	delete camera;
 
 	return 0;
 
 optical_memory_error:
+mavlink_init_error:
+	delete mavlink;
+mavlink_memory_error:
 	camera->shutdown();
 camera_init_error:
 	delete camera;
