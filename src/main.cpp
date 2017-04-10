@@ -38,6 +38,8 @@
 #include <linux/videodev2.h>
 #include <opencv2/opencv.hpp>
 
+#include <mavlink.h>
+
 #include "config.h"
 #include "camera.h"
 
