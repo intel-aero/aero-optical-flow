@@ -37,6 +37,7 @@
 #include <fcntl.h>
 #include <malloc.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -46,14 +47,6 @@
 
 #include "config.h"
 #include "log.h"
-
-// TODO handle buffers for multiple cameras
-#define BUFFER_LEN 4
-static void *buffers[BUFFER_LEN];
-static size_t buffer_len;
-
-static void (*video_callback)(int fd, const void *img, size_t len, void *data);
-static const void *video_callback_data;
 
 // TODO: Specific values for Intel?
 enum {
@@ -73,44 +66,55 @@ static int xioctl(int fd, int request, void *arg)
     return r;
 }
 
-static int _backend_user_ptr_streaming_init(int fd, uint32_t sizeimage)
+Camera::Camera(const char *device)
+{
+	_device = strdup(device);
+}
+
+Camera::~Camera()
+{
+	free(_device);
+}
+
+int Camera::_backend_user_ptr_streaming_init(uint32_t sizeimage)
 {
 	struct v4l2_requestbuffers req;
 	struct v4l2_buffer buf;
 	int pagesize;
 
 	// initialize v4l2 backend
+	memset(&req, 0, sizeof(struct v4l2_requestbuffers));
 	req.count = BUFFER_LEN;
 	req.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	req.memory = V4L2_MEMORY_USERPTR;
-	int ret = xioctl(fd, VIDIOC_REQBUFS, &req);
+	int ret = xioctl(_fd, VIDIOC_REQBUFS, &req);
 	if (ret) {
 		goto error;
 	}
 
 	// allocate buffer
 	pagesize = getpagesize();
-	buffer_len = (sizeimage + pagesize - 1) & ~(pagesize - 1);
+	_buffer_len = (sizeimage + pagesize - 1) & ~(pagesize - 1);
 	for (uint8_t i = 0; i < BUFFER_LEN; i++) {
-		buffers[i] = memalign(pagesize, buffer_len);
-		if (!buffers[i]) {
+		_buffers[i] = memalign(pagesize, _buffer_len);
+		if (!_buffers[i]) {
 			goto error;
 		}
 	}
 #if DEBUG_LEVEL
-	DEBUG("pagesize=%i buffer_len=%u", pagesize, buffer_len);
+	DEBUG("pagesize=%i buffer_len=%u", pagesize, _buffer_len);
 #endif
 
 	// give buffers to backend
 	memset(&buf, 0, sizeof(struct v4l2_buffer));
 	buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	buf.memory = V4L2_MEMORY_USERPTR;
-	buf.length = buffer_len;
+	buf.length = _buffer_len;
 
 	for (uint8_t i = 0; i < BUFFER_LEN; i++) {
 		buf.index = i;
-		buf.m.userptr = (unsigned long)buffers[i];
-		ret = xioctl(fd, VIDIOC_QBUF, &buf);
+		buf.m.userptr = (unsigned long)_buffers[i];
+		ret = xioctl(_fd, VIDIOC_QBUF, &buf);
 		if (ret) {
 			ERROR("Error giving buffers to backend: %s | i=%i", strerror(errno), i);
 			goto error;
@@ -123,30 +127,49 @@ error:
 	return ret;
 }
 
-int camera_init(int fd, int device_id, uint32_t width, uint32_t height, uint32_t pixel_format)
+int Camera::init(int device_id, uint32_t width, uint32_t height, uint32_t pixel_format)
 {
 	struct v4l2_streamparm parm;
 	struct v4l2_capability cap;
 	struct v4l2_crop crop;
 	struct v4l2_format fmt;
 	enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-	int ret;
+	struct stat st;
+	int ret = -1;
+
+	ret = stat(_device, &st);
+	if (ret) {
+		ERROR("Unable to get device stat");
+		goto end;
+	}
+
+	if (!S_ISCHR(st.st_mode)) {
+		ERROR("Device is not a character device");
+		goto end;
+	}
+
+	_fd = open(_device, O_RDWR | O_NONBLOCK);
+	if (_fd == -1) {
+		ret = -1;
+		ERROR("Unable to open device file descriptor: %s", _device);
+		goto end;
+	}
 
 	// set device_id
-	ret = xioctl(fd, VIDIOC_S_INPUT, (int *)&device_id);
+	ret = xioctl(_fd, VIDIOC_S_INPUT, (int *)&device_id);
 	if (ret) {
 		ERROR("Error setting device id: %s", strerror(errno));
 		goto error;
 	}
 
-	ret = xioctl(fd, VIDIOC_STREAMOFF, &type);
+	ret = xioctl(_fd, VIDIOC_STREAMOFF, &type);
 	if (ret) {
 		ERROR("Error stopping streaming: %s", strerror(errno));
 		goto error;
 	}
 
 	// get capabilities and check if can be used to capture
-	ret = xioctl(fd, VIDIOC_QUERYCAP, &cap);
+	ret = xioctl(_fd, VIDIOC_QUERYCAP, &cap);
 	if (ret) {
 		ERROR("Error getting capabilities");
 		goto error;
@@ -171,7 +194,7 @@ int camera_init(int fd, int device_id, uint32_t width, uint32_t height, uint32_t
 	memset(&parm, 0, sizeof(struct v4l2_streamparm));
 	parm.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	parm.parm.capture.capturemode = CAPTURE_MODE_PREVIEW;
-	ret = xioctl(fd, VIDIOC_S_PARM, &parm);
+	ret = xioctl(_fd, VIDIOC_S_PARM, &parm);
 	if (ret) {
 		ERROR("Unable to set stream parameters: %s", strerror(errno));
 		goto error;
@@ -180,12 +203,11 @@ int camera_init(int fd, int device_id, uint32_t width, uint32_t height, uint32_t
 	// set pixel format
 	memset(&fmt, 0, sizeof(struct v4l2_format));
 	fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-	DEBUG("w=%u h=%u", width, height);
 	fmt.fmt.pix.width = width;
 	fmt.fmt.pix.height = height;
 	fmt.fmt.pix.pixelformat = pixel_format;
 	fmt.fmt.pix.field = V4L2_FIELD_INTERLACED;
-	ret = xioctl(fd, VIDIOC_S_FMT, &fmt);
+	ret = xioctl(_fd, VIDIOC_S_FMT, &fmt);
 	if (ret) {
 		ERROR("Setting pixel format: %s", strerror(errno));
 		goto error;
@@ -194,54 +216,32 @@ int camera_init(int fd, int device_id, uint32_t width, uint32_t height, uint32_t
 	DEBUG("size image=%u", fmt.fmt.pix.sizeimage);
 #endif
 
-	ret = _backend_user_ptr_streaming_init(fd, fmt.fmt.pix.sizeimage);
+	ret = _backend_user_ptr_streaming_init(fmt.fmt.pix.sizeimage);
 	if (ret) {
 		ERROR("Error initializing streaming backend: %s", strerror(errno));
 		goto error;
 	}
 
 	// finally start streaming
-	ret = xioctl(fd, VIDIOC_STREAMON, &type);
+	ret = xioctl(_fd, VIDIOC_STREAMON, &type);
 	if (ret) {
 		ERROR("Error starting streaming: %s", strerror(errno));
 		goto error_starting;
 	}
 
 	return 0;
+
 error_starting:
 	for (uint8_t i = 0; i < BUFFER_LEN; i++) {
-		free(buffers[i]);
+		free(_buffers[i]);
 	}
 error:
-	return ret;
-}
-
-int camera_open(const char *device)
-{
-	struct stat st;
-	int ret = -1;
-
-	ret = stat(device, &st);
-	if (ret) {
-		ERROR("Error getting device stat");
-		goto end;
-	}
-
-	if (!S_ISCHR(st.st_mode)) {
-		ERROR("Device is not a character device");
-		goto end;
-	}
-
-	ret = open(device, O_RDWR | O_NONBLOCK);
-	if (ret == -1) {
-		ERROR("Error opening device file descriptor");
-	}
-
+	close(_fd);
 end:
 	return ret;
 }
 
-static void _backend_user_ptr_streaming_read(int fd)
+void Camera::_backend_user_ptr_streaming_read(void)
 {
 	struct v4l2_buffer buf;
 
@@ -249,42 +249,56 @@ static void _backend_user_ptr_streaming_read(int fd)
 	buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	buf.memory = V4L2_MEMORY_USERPTR;
 
-	int ret = xioctl(fd, VIDIOC_DQBUF, &buf);
+	int ret = xioctl(_fd, VIDIOC_DQBUF, &buf);
 	if (ret) {
+		ERROR("Error getting frame from camera");
 		return;
 	}
 
-	if (video_callback) {
-		video_callback(fd, (const void *)buf.m.userptr, buf.length, (void *)video_callback_data);
+	if (_callback) {
+		_callback((const void *)buf.m.userptr, buf.length, (void *)_callback_data);
 	}
 
 	// give buffer back to backend
-	xioctl(fd, VIDIOC_QBUF, &buf);
-}
-
-void camera_frame_read(int fd)
-{
-	_backend_user_ptr_streaming_read(fd);
-}
-
-void camera_shutdown(int fd)
-{
-	enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-	// stop streaming
-	xioctl(fd, VIDIOC_STREAMOFF, &type);
-
-	for (uint8_t i = 0; i < BUFFER_LEN; i++) {
-		free(buffers[i]);
+	ret = xioctl(_fd, VIDIOC_QBUF, &buf);
+	if (ret) {
+		ERROR("Error returning buffer to backend");
 	}
 }
 
-void camera_close(int fd)
+void Camera::handle_read(void)
 {
-	close(fd);
+	_backend_user_ptr_streaming_read();
 }
 
-void camera_callback_set(void (*callback)(int fd, const void *img, size_t len, void *data), const void *data)
+bool Camera::handle_canwrite(void)
 {
-	video_callback = callback;
-	video_callback_data = data;
+	return false;
+}
+
+int Camera::shutdown(void)
+{
+	if (_fd == -1) {
+		return -1;
+	}
+
+	enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+
+	// stop streaming
+	xioctl(_fd, VIDIOC_STREAMOFF, &type);
+
+	for (uint8_t i = 0; i < BUFFER_LEN; i++) {
+		free(_buffers[i]);
+	}
+
+	close(_fd);
+	_fd = -1;
+
+	return 0;
+}
+
+void Camera::callback_set(void (*callback)(const void *img, size_t len, void *data), const void *data)
+{
+	_callback = callback;
+	_callback_data = data;
 }

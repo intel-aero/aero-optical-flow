@@ -31,9 +31,9 @@
  *
  ****************************************************************************/
 
-#include <poll.h>
 #include <signal.h>
 #include <stdio.h>
+#include <poll.h>
 
 #include <linux/videodev2.h>
 #include <opencv2/opencv.hpp>
@@ -45,6 +45,7 @@
 
 #include "config.h"
 #include "camera.h"
+#include "log.h"
 
 using namespace cv;
 
@@ -90,16 +91,18 @@ static void signal_handlers_setup(void)
     sigaction(SIGPIPE, &sa, NULL);
 }
 
-static void loop(int fd)
+static void loop(Pollable *pollables[], uint8_t len)
 {
-	struct pollfd desc[1];
+	struct pollfd desc[len];
 
 	signal_handlers_setup();
 	should_run = true;
 
-	desc[0].events = POLLIN;
-	desc[0].fd = fd;
-	desc[0].revents = 0;
+	for (uint8_t i = 0; i < len; i++) {
+		desc[i].fd = pollables[i]->_fd;
+		desc[i].events = POLLIN;
+		desc[i].revents = 0;
+	}
 
 	while (should_run) {
 		int ret = poll(desc, sizeof(desc) / sizeof(struct pollfd), -1);
@@ -108,8 +111,16 @@ static void loop(int fd)
 		}
 
 		for (int i = 0; ret && i < (sizeof(desc) / sizeof(struct pollfd)); i++, ret--) {
-			if (desc[i].revents & POLLIN) {
-				camera_frame_read(desc[i].fd);
+			for (uint8_t j = 0; j < len; j++) {
+				if (desc[i].fd == pollables[j]->_fd) {
+					if (desc[i].revents & (POLLIN | POLLPRI)) {
+						pollables[j]->handle_read();
+					}
+					if (desc[i].revents & POLLOUT) {
+						pollables[j]->handle_canwrite();
+					}
+					break;
+				}
 			}
 		}
 	}
@@ -123,7 +134,7 @@ static void image_show(const void *img, size_t len)
 }
 #endif
 
-static void video_callback(int fd, const void *img, size_t len, void *data)
+static void camera_callback(const void *img, size_t len, void *data)
 {
 #if DEBUG_LEVEL
 	image_show(img, len);
@@ -132,40 +143,50 @@ static void video_callback(int fd, const void *img, size_t len, void *data)
 
 int main()
 {
+	Camera *camera;
 	OpticalFlowOpenCV *optical_flow;
+	Pollable *pollables[1];
+	int ret;
 
-	int fd = camera_open(default_device);
-	if (fd == -1) {
-		goto open_error;
+	camera = new Camera(default_device);
+	if (!camera) {
+		ERROR("No memory to instantiate Camera");
+		return -1;
 	}
-	if (camera_init(fd, DEFAULT_DEVICE_ID, DEFAULT_IMG_WIDTH,
-			DEFAULT_IMG_HEIGHT, DEFAULT_PIXEL_FORMAT)) {
-		goto init_error;
+	ret = camera->init(DEFAULT_DEVICE_ID, DEFAULT_IMG_WIDTH, DEFAULT_IMG_HEIGHT, DEFAULT_PIXEL_FORMAT);
+	if (ret) {
+		ERROR("Unable to initialize camera");
+		goto camera_init_error;
 	}
-	camera_callback_set(video_callback, NULL);
+
+	optical_flow = new OpticalFlowOpenCV(0, 0, 0);
+	if (!optical_flow) {
+		ERROR("No memory to instantiate OpticalFlowOpenCV");
+		goto optical_memory_error;
+	}
+	camera->callback_set(camera_callback, optical_flow);
 
 #if DEBUG_LEVEL
 	namedWindow(window_name, WINDOW_AUTOSIZE);
 	startWindowThread();
 #endif
 
-	optical_flow = new OpticalFlowOpenCV(0, 0, 0);
-
-	loop(fd);
-
-	camera_shutdown(fd);
-	camera_close(fd);
-
-	delete optical_flow;
+	pollables[0] = camera;
+	loop(pollables, 1);
 
 #if DEBUG_LEVEL
 	destroyAllWindows();
 #endif
 
+	delete optical_flow;
+	camera->shutdown();
+	delete camera;
+
 	return 0;
 
-init_error:
-	camera_close(fd);
-open_error:
+optical_memory_error:
+	camera->shutdown();
+camera_init_error:
+	delete camera;
 	return -1;
 }
