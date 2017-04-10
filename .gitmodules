@@ -1,0 +1,6 @@
+[submodule "modules/OpticalFlow"]
+	path = modules/OpticalFlow
+	url = https://github.com/PX4/OpticalFlow.git
+[submodule "modules/mavlink"]
+	path = modules/mavlink
+	url = https://github.com/mavlink/mavlink.git
