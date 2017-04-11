@@ -122,11 +122,19 @@ static void image_show(const void *img, size_t len)
 }
 #endif
 
-static void video_callback(const void *img, size_t len, void *data)
+static void video_callback(const void *img, size_t len, struct timeval *timestamp, void *data)
 {
+	int dt_us;
+	float x = 0, y = 0;
+	OpticalFlowOpenCV *optical_flow = (OpticalFlowOpenCV *)data;
+
+
 #if DEBUG_LEVEL
 	image_show(img, len);
 #endif
+
+	int quality = optical_flow->calcFlow((uint8_t *)img, timestamp->tv_sec, dt_us, x, y);
+	DEBUG("Optical flow data: quality=%i x=%f y=%f dt_us=%i", quality, x, y, dt_us);
 }
 
 static int fd_add(int fd, void *data, int events)
@@ -186,7 +194,6 @@ int main()
 		ERROR("Unable to initialize camera");
 		goto camera_init_error;
 	}
-	camera->callback_set(video_callback, NULL);
 
 	mavlink = new Mavlink_UDP();
 	if (!mavlink) {
@@ -199,11 +206,14 @@ int main()
 		goto mavlink_init_error;
 	}
 
-	optical_flow = new OpticalFlowOpenCV(0, 0, 0);
+	// TODO: get the real value of f_length_x and f_length_y
+	// TODO:  check that image format it uses
+	optical_flow = new OpticalFlowOpenCV(0, 0, -1, DEFAULT_IMG_WIDTH, DEFAULT_IMG_HEIGHT);
 	if (!optical_flow) {
 		ERROR("No memory to instantiate OpticalFlowOpenCV");
 		goto optical_memory_error;
 	}
+	camera->callback_set(video_callback, optical_flow);
 
 	epollfd = epoll_create1(EPOLL_CLOEXEC);
 	if (epollfd == -1) {
