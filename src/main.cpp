@@ -125,19 +125,23 @@ static void loop(Pollable *pollables[], uint8_t len)
 	}
 }
 
-#if DEBUG_LEVEL
-static void image_show(const void *img, size_t len)
+static void camera_callback(const void *img, size_t len, struct timeval *timestamp, void *data)
 {
-	Mat input(DEFAULT_IMG_HEIGHT , DEFAULT_IMG_WIDTH, CV_8UC1, (unsigned char *)img);
-	imshow(window_name, input);
-}
+	int dt_us;
+	float x = 0, y = 0;
+	OpticalFlowOpenCV *optical_flow = (OpticalFlowOpenCV *)data;
+
+	Mat frame_gray = Mat(DEFAULT_IMG_HEIGHT, DEFAULT_IMG_WIDTH, CV_8UC1);
+	frame_gray.data = (uchar*)img;
+
+#if DEBUG_LEVEL
+	imshow(window_name, frame_gray);
 #endif
 
-static void camera_callback(const void *img, size_t len, void *data)
-{
-#if DEBUG_LEVEL
-	image_show(img, len);
-#endif
+	DEBUG("camera callback timestamp: sec=%lu usec=%lu", timestamp->tv_sec, timestamp->tv_usec);
+
+	int quality = optical_flow->calcFlow(frame_gray.data, timestamp->tv_sec, dt_us, x, y);
+	DEBUG("Optical flow data: quality=%i x=%f y=%f dt_us=%i", quality, x, y, dt_us);
 }
 
 int main()
@@ -170,7 +174,9 @@ int main()
 		goto mavlink_init_error;
 	}
 
-	optical_flow = new OpticalFlowOpenCV(0, 0, 0);
+	// TODO: get the real value of f_length_x and f_length_y
+	// TODO:  check that image format it uses
+	optical_flow = new OpticalFlowOpenCV(1, 1, -1, DEFAULT_IMG_WIDTH, DEFAULT_IMG_HEIGHT);
 	if (!optical_flow) {
 		ERROR("No memory to instantiate OpticalFlowOpenCV");
 		goto optical_memory_error;

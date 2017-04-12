@@ -256,7 +256,7 @@ void Camera::_backend_user_ptr_streaming_read(void)
 	}
 
 	if (_callback) {
-		_callback((const void *)buf.m.userptr, buf.length, (void *)_callback_data);
+		_callback((const void *)buf.m.userptr, buf.length, &buf.timestamp, (void *)_callback_data);
 	}
 
 	// give buffer back to backend
@@ -297,7 +297,7 @@ int Camera::shutdown(void)
 	return 0;
 }
 
-void Camera::callback_set(void (*callback)(const void *img, size_t len, void *data), const void *data)
+void Camera::callback_set(void (*callback)(const void *img, size_t len, struct timeval *timestamp, void *data), const void *data)
 {
 	_callback = callback;
 	_callback_data = data;
