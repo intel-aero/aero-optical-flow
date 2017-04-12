@@ -107,18 +107,19 @@ void Mavlink_UDP::handle_read()
 
 void Mavlink_UDP::_handle(mavlink_message_t *msg)
 {
-	if (msg->msgid == MAVLINK_MSG_ID_HIGHRES_IMU) {
-		_handle_highres_imu(msg);
+	if (msg->msgid == MAVLINK_MSG_ID_HIGHRES_IMU && _highres_imu_msg_callback) {
+		mavlink_highres_imu_t highres_imu;
+		mavlink_msg_highres_imu_decode(msg, &highres_imu);
+
+		_highres_imu_msg_callback(&highres_imu, (void *)_highres_imu_msg_callback_data);
 		return;
 	}
 }
 
-void Mavlink_UDP::_handle_highres_imu(mavlink_message_t *msg)
+void Mavlink_UDP::highres_imu_msg_subscribe(void (*callback)(const mavlink_highres_imu_t *msg, void *data), const void *data)
 {
-	mavlink_highres_imu_t highres_imu;
-	mavlink_msg_highres_imu_decode(msg, &highres_imu);
-
-	// TODO
+	_highres_imu_msg_callback = callback;
+	_highres_imu_msg_callback_data = data;
 }
 
 bool Mavlink_UDP::handle_canwrite()

@@ -33,29 +33,14 @@
 
 #pragma once
 
-#include <arpa/inet.h>
-#include <sys/socket.h>
+#include <stdint.h>
 
-#include <mavlink.h>
+typedef uint64_t usec_t;
+typedef uint64_t nsec_t;
 
-#include "pollable.h"
-
-class Mavlink_UDP : public Pollable {
-public:
-	virtual ~Mavlink_UDP();
-
-	int init(const char *ip, unsigned long port);
-
-	void handle_read() override;
-	bool handle_canwrite() override;
-
-	void highres_imu_msg_subscribe(void (*callback)(const mavlink_highres_imu_t *msg, void *data), const void *data);
-
-private:
-	struct sockaddr_in _sockaddr;
-
-	void _handle(mavlink_message_t *msg);
-
-	void (*_highres_imu_msg_callback)(const mavlink_highres_imu_t *msg, void *data) = NULL;
-	const void *_highres_imu_msg_callback_data;
-};
+#define MSEC_PER_SEC  1000ULL
+#define USEC_PER_SEC  ((usec_t) 1000000ULL)
+#define USEC_PER_MSEC ((usec_t) 1000ULL)
+#define NSEC_PER_SEC  ((nsec_t) 1000000000ULL)
+#define NSEC_PER_MSEC ((nsec_t) 1000000ULL)
+#define NSEC_PER_USEC ((nsec_t) 1000ULL)

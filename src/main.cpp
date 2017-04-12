@@ -41,10 +41,13 @@
 #include <flow_opencv.hpp>
 #include <flow_px4.hpp>
 
+#include <mavlink.h>
+
 #include "config.h"
 #include "camera.h"
 #include "mavlink_udp.h"
 #include "log.h"
+#include "util.h"
 
 using namespace cv;
 
@@ -67,6 +70,12 @@ struct {
 
 #define DEFAULT_PIXEL_FORMAT V4L2_PIX_FMT_YUV420
 #define DEFAULT_DEVICE_ID 1
+
+static struct gyro_data_t {
+	float x, y, z;
+	uint64_t time_usec;
+} gyro_data;
+static bool ready_to_send_msg;
 
 static const char *default_device = "/dev/video2";
 
@@ -142,6 +151,36 @@ static void camera_callback(const void *img, size_t len, struct timeval *timesta
 
 	int quality = optical_flow->calcFlow(frame_gray.data, timestamp->tv_sec, dt_us, x, y);
 	DEBUG("Optical flow data: quality=%i x=%f y=%f dt_us=%i", quality, x, y, dt_us);
+
+	if (!ready_to_send_msg) {
+		DEBUG("Not ready to send optical flow message");
+		return;
+	}
+
+	mavlink_optical_flow_rad_t msg;
+	msg.time_usec = timestamp->tv_usec + timestamp->tv_sec * USEC_PER_SEC;
+	msg.integration_time_us = dt_us;
+	msg.integrated_x = x;
+	msg.integrated_y = y;
+	msg.integrated_xgyro = gyro_data.x;
+	msg.integrated_ygyro = gyro_data.y;
+	msg.integrated_zgyro = gyro_data.z;
+	msg.time_delta_distance_us = 0;
+	msg.distance = -1.0;
+	msg.temperature = 0;
+	msg.sensor_id = 0;
+	msg.quality = quality;
+
+	// TODO send message
+}
+
+static void highres_imu_msg_subscribe(const mavlink_highres_imu_t *msg, void *data)
+{
+	gyro_data.x = msg->xgyro;
+	gyro_data.y = msg->ygyro;
+	gyro_data.z = msg->zgyro;
+	gyro_data.time_usec = msg->time_usec;
+	ready_to_send_msg = true;//TODO check liveness
 }
 
 int main()
@@ -173,6 +212,7 @@ int main()
 		ERROR("Unable to initialize mavlink");
 		goto mavlink_init_error;
 	}
+	mavlink->highres_imu_msg_subscribe(highres_imu_msg_subscribe, NULL);
 
 	// TODO: get the real value of f_length_x and f_length_y
 	// TODO:  check that image format it uses
