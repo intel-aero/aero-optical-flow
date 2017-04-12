@@ -126,20 +126,43 @@ static void image_show(const void *img, size_t len)
 static void video_callback(const void *img, size_t len, struct timeval *timestamp, void *data)
 {
 	int dt_us;
-	float x = 0, y = 0;
+	float flow_x_ang = 0, flow_y_ang = 0;
 	OpticalFlowOpenCV *optical_flow = (OpticalFlowOpenCV *)data;
 
+	//TODO We might need to crop the image since it has a lens with a very wide field of view
+	// and optical flow assumes a narrow field of view
 
 #if DEBUG_LEVEL
 	image_show(img, len);
 #endif
 
-	static double timestamp_first = timestamp->tv_sec;
+	static double timestamp_first = timestamp->tv_sec; //reduce value of timestamp_us
 	uint32_t timestamp_us = (uint32_t)(timestamp->tv_usec + (timestamp->tv_sec - timestamp_first) * 1e6);
 
-	int quality = optical_flow->calcFlow((uint8_t *)img, timestamp_us, dt_us, x, y);
-	if (quality >= 0) //-1 if not ready yet -> flow output rate
-		printf("Optical flow data: quality=%i x=%f y=%f dt_us=%i timestamp=%i\n", quality, x, y, dt_us, timestamp_us);
+	int flow_quality = optical_flow->calcFlow((uint8_t *)img, timestamp_us, dt_us, flow_x_ang, flow_y_ang);
+
+	if (flow_quality >= 0) { //-1 if not ready yet/ still integrating -> flow output rate
+
+		printf("Optical flow data: quality=%i x=%f y=%f dt_us=%i timestamp=%i\n",
+			flow_quality, flow_x_ang, flow_y_ang, dt_us, timestamp_us);
+
+		mavlink_optical_flow_rad_t sensor_msg;
+
+		sensor_msg.time_usec = timestamp_us;
+		sensor_msg.sensor_id = 0; //?
+		sensor_msg.integration_time_us = dt_us;
+		sensor_msg.integrated_x = flow_x_ang; //TODO check orientation
+		sensor_msg.integrated_y = flow_y_ang; //TODO check orientation
+		sensor_msg.integrated_xgyro = 0.0;  // fill with mavlink gyro messages
+		sensor_msg.integrated_ygyro = 0.0;  // fill with mavlink gyro messages
+		sensor_msg.integrated_zgyro = 0.0;  // fill with mavlink gyro messages
+		sensor_msg.temperature = 0.0;
+		sensor_msg.quality = flow_quality;
+		sensor_msg.time_delta_distance_us = 0.0; //?
+		sensor_msg.distance = -1.0; // mark as invalid
+
+		//TODO send mavlink message
+	}
 }
 
 static int fd_add(int fd, void *data, int events)
