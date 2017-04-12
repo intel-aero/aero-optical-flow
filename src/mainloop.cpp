@@ -89,6 +89,8 @@ private:
 
 	bool _ready_to_send_msg = false;
 
+	uint32_t _camera_initial_timestamp = 0;
+
 	Camera *_camera;
 	OpticalFlowOpenCV *_optical_flow;
 	Mavlink_UDP *_mavlink;
@@ -174,7 +176,16 @@ void Mainloop::camera_callback(const void *img, size_t len, struct timeval *time
 
 	DEBUG("camera callback timestamp: sec=%lu usec=%lu", timestamp->tv_sec, timestamp->tv_usec);
 
-	int quality = _optical_flow->calcFlow(frame_gray.data, timestamp->tv_sec, dt_us, x, y);
+	uint32_t img_time_us = timestamp->tv_usec + timestamp->tv_sec * USEC_PER_SEC;
+	if (_camera_initial_timestamp) {
+		img_time_us -= _camera_initial_timestamp;
+	} else {
+		_camera_initial_timestamp = img_time_us;
+		img_time_us = 0;
+	}
+
+
+	int quality = _optical_flow->calcFlow(frame_gray.data, img_time_us, dt_us, x, y);
 	DEBUG("Optical flow data: quality=%i x=%f y=%f dt_us=%i", quality, x, y, dt_us);
 
 	if (!_ready_to_send_msg) {
