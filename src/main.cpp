@@ -64,6 +64,7 @@ struct {
 #define DEFAULT_RESOLUTION 1
 #define DEFAULT_IMG_WIDTH resolutions[DEFAULT_RESOLUTION].width
 #define DEFAULT_IMG_HEIGHT resolutions[DEFAULT_RESOLUTION].height
+#define DEFAULT_FLOW_OUTPUT_RATE 15
 
 #define DEFAULT_PIXEL_FORMAT V4L2_PIX_FMT_YUV420
 #define DEFAULT_DEVICE_ID 1
@@ -133,8 +134,12 @@ static void video_callback(const void *img, size_t len, struct timeval *timestam
 	image_show(img, len);
 #endif
 
-	int quality = optical_flow->calcFlow((uint8_t *)img, timestamp->tv_sec, dt_us, x, y);
-	DEBUG("Optical flow data: quality=%i x=%f y=%f dt_us=%i", quality, x, y, dt_us);
+	static double timestamp_first = timestamp->tv_sec;
+	uint32_t timestamp_us = (uint32_t)(timestamp->tv_usec + (timestamp->tv_sec - timestamp_first) * 1e6);
+
+	int quality = optical_flow->calcFlow((uint8_t *)img, timestamp_us, dt_us, x, y);
+	if (quality >= 0) //-1 if not ready yet -> flow output rate
+		printf("Optical flow data: quality=%i x=%f y=%f dt_us=%i timestamp=%i\n", quality, x, y, dt_us, timestamp_us);
 }
 
 static int fd_add(int fd, void *data, int events)
@@ -208,7 +213,8 @@ int main()
 
 	// TODO: get the real value of f_length_x and f_length_y
 	// TODO:  check that image format it uses
-	optical_flow = new OpticalFlowOpenCV(0, 0, -1, DEFAULT_IMG_WIDTH, DEFAULT_IMG_HEIGHT);
+	optical_flow = new OpticalFlowOpenCV(100.0f, 100.0f, DEFAULT_FLOW_OUTPUT_RATE,
+			DEFAULT_IMG_WIDTH, DEFAULT_IMG_HEIGHT);
 	if (!optical_flow) {
 		ERROR("No memory to instantiate OpticalFlowOpenCV");
 		goto optical_memory_error;
