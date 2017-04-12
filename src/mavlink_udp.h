@@ -51,6 +51,7 @@ public:
 
 	void highres_imu_msg_subscribe(void (*callback)(const mavlink_highres_imu_t *msg, void *data), const void *data);
 
+	int optical_flow_rad_msg_write(mavlink_optical_flow_rad_t *msg);
 private:
 	struct sockaddr_in _sockaddr;
 
@@ -58,4 +59,7 @@ private:
 
 	void (*_highres_imu_msg_callback)(const mavlink_highres_imu_t *msg, void *data) = NULL;
 	const void *_highres_imu_msg_callback_data;
+
+	const uint8_t _system_id = 100;
+	const uint8_t _component_id = MAV_COMP_ID_ALL;
 };

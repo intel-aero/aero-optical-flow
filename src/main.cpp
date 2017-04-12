@@ -76,6 +76,7 @@ static struct gyro_data_t {
 	uint64_t time_usec;
 } gyro_data;
 static bool ready_to_send_msg;
+static Mavlink_UDP *mavlink;
 
 static const char *default_device = "/dev/video2";
 
@@ -171,7 +172,7 @@ static void camera_callback(const void *img, size_t len, struct timeval *timesta
 	msg.sensor_id = 0;
 	msg.quality = quality;
 
-	// TODO send message
+	mavlink->optical_flow_rad_msg_write(&msg);
 }
 
 static void highres_imu_msg_subscribe(const mavlink_highres_imu_t *msg, void *data)
@@ -186,7 +187,6 @@ static void highres_imu_msg_subscribe(const mavlink_highres_imu_t *msg, void *da
 int main()
 {
 	Camera *camera;
-	Mavlink_UDP *mavlink;
 	OpticalFlowOpenCV *optical_flow;
 	Pollable *pollables[2];
 	int ret;
