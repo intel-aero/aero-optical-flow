@@ -68,6 +68,8 @@ static struct {
 #define DEFAULT_RESOLUTION 1
 #define DEFAULT_IMG_WIDTH resolutions[DEFAULT_RESOLUTION].width
 #define DEFAULT_IMG_HEIGHT resolutions[DEFAULT_RESOLUTION].height
+#define DEFAULT_IMG_CROP_WIDTH 128
+#define DEFAULT_IMG_CROP_HEIGHT 128
 #define DEFAULT_FLOW_OUTPUT_RATE 15
 
 #define DEFAULT_PIXEL_FORMAT V4L2_PIX_FMT_YUV420
@@ -175,6 +177,10 @@ void Mainloop::camera_callback(const void *img, size_t len, const struct timeval
 
 	Mat frame_gray = Mat(DEFAULT_IMG_HEIGHT, DEFAULT_IMG_WIDTH, CV_8UC1);
 	frame_gray.data = (uchar*)img;
+	//crop the image (optical flow assumes narrow field of view)
+	static cv::Rect crop(DEFAULT_IMG_WIDTH/2 - DEFAULT_IMG_CROP_WIDTH/2, DEFAULT_IMG_HEIGHT/2 - DEFAULT_IMG_CROP_HEIGHT/2,
+			DEFAULT_IMG_CROP_WIDTH, DEFAULT_IMG_CROP_HEIGHT);
+	cv::Mat croppedImage = frame_gray(crop);
 
 #if DEBUG_LEVEL
 	imshow(_window_name, frame_gray);
@@ -191,7 +197,7 @@ void Mainloop::camera_callback(const void *img, size_t len, const struct timeval
 		img_time_us = 0;
 	}
 
-	int flow_quality = _optical_flow->calcFlow(frame_gray.data, img_time_us, dt_us, flow_x_ang, flow_y_ang);
+	int flow_quality = _optical_flow->calcFlow(croppedImage.data, img_time_us, dt_us, flow_x_ang, flow_y_ang);
 
 #if DEBUG_LEVEL
 	DEBUG("Optical flow quality=%i x=%f y=%f timestamp sec=%lu usec=%lu fps=%f", flow_quality, flow_x_ang, flow_y_ang,
@@ -221,6 +227,7 @@ void Mainloop::camera_callback(const void *img, size_t len, const struct timeval
 		msg.sensor_id = 0;
 		msg.quality = flow_quality;
 
+		//send mavlink message
 		_mavlink->optical_flow_rad_msg_write(&msg);
 	}
 }
@@ -269,7 +276,8 @@ int Mainloop::run()
 
 	// TODO: get the real value of f_length_x and f_length_y
 	// TODO:  check that image format it uses
-	_optical_flow = new OpticalFlowOpenCV(1, 1, DEFAULT_FLOW_OUTPUT_RATE, DEFAULT_IMG_WIDTH, DEFAULT_IMG_HEIGHT);
+	// TODO: user input for img width/height, rate, etc.
+	_optical_flow = new OpticalFlowOpenCV(1, 1, DEFAULT_FLOW_OUTPUT_RATE, DEFAULT_IMG_CROP_WIDTH, DEFAULT_IMG_CROP_HEIGHT);
 	if (!_optical_flow) {
 		ERROR("No memory to instantiate OpticalFlowOpenCV");
 		goto optical_memory_error;
