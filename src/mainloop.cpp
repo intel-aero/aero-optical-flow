@@ -190,10 +190,11 @@ void Mainloop::camera_callback(const void *img, size_t len, const struct timeval
 		img_time_us = 0;
 	}
 
-	DEBUG("camera callback timestamp sec=%lu usec=%lu fps=%f", img_time_us / USEC_PER_SEC, img_time_us % USEC_PER_SEC, fps);
-
 	int quality = _optical_flow->calcFlow(frame_gray.data, img_time_us, dt_us, x, y);
-	DEBUG("Optical flow data: quality=%i x=%f y=%f dt_us=%i", quality, x, y, dt_us);
+
+#if DEBUG_LEVEL
+	DEBUG("Optical flow quality=%i x=%f y=%f timestamp sec=%lu usec=%lu fps=%f", quality, x, y, img_time_us / USEC_PER_SEC, img_time_us % USEC_PER_SEC, fps);
+#endif
 
 	_camera_prev_timestamp = img_time_us;
 
