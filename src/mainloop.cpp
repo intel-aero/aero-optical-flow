@@ -39,7 +39,6 @@
 #include <opencv2/opencv.hpp>
 
 #include <flow_opencv.hpp>
-#include <flow_px4.hpp>
 
 #include <mavlink.h>
 
