@@ -48,7 +48,7 @@ public:
 	int init(int device_id, uint32_t width, uint32_t height, uint32_t pixel_format);
 	int shutdown();
 
-	void callback_set(void (*callback)(const void *img, size_t len, struct timeval *timestamp, void *data), const void *data);
+	void callback_set(void (*callback)(const void *img, size_t len, const struct timeval *timestamp, void *data), const void *data);
 
 	void handle_read() override;
 	bool handle_canwrite() override;
@@ -58,7 +58,7 @@ private:
 	void *_buffers[BUFFER_LEN];
 	size_t _buffer_len = 0;
 
-	void (*_callback)(const void *img, size_t len, struct timeval *timestamp, void *data) = NULL;
+	void (*_callback)(const void *img, size_t len, const struct timeval *timestamp, void *data) = NULL;
 	const void *_callback_data;
 
 	int _backend_user_ptr_streaming_init(uint32_t sizeimage);

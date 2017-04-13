@@ -297,7 +297,7 @@ int Camera::shutdown(void)
 	return 0;
 }
 
-void Camera::callback_set(void (*callback)(const void *img, size_t len, struct timeval *timestamp, void *data), const void *data)
+void Camera::callback_set(void (*callback)(const void *img, size_t len, const struct timeval *timestamp, void *data), const void *data)
 {
 	_callback = callback;
 	_callback_data = data;

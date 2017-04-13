@@ -72,7 +72,7 @@ class Mainloop {
 public:
 	int run();
 
-	void camera_callback(const void *img, size_t len, struct timeval *timestamp);
+	void camera_callback(const void *img, size_t len, const struct timeval *timestamp);
 	void highres_imu_msg_callback(const mavlink_highres_imu_t *msg);
 
 private:
@@ -156,13 +156,13 @@ void Mainloop::loop()
 	}
 }
 
-static void _camera_callback(const void *img, size_t len, struct timeval *timestamp, void *data)
+static void _camera_callback(const void *img, size_t len, const struct timeval *timestamp, void *data)
 {
 	Mainloop *mainloop = (Mainloop *)data;
 	mainloop->camera_callback(img, len, timestamp);
 }
 
-void Mainloop::camera_callback(const void *img, size_t len, struct timeval *timestamp)
+void Mainloop::camera_callback(const void *img, size_t len, const struct timeval *timestamp)
 {
 	int dt_us = 0;
 	float x = 0, y = 0;
