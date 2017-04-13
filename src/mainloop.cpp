@@ -51,7 +51,11 @@
 
 using namespace cv;
 
-// OV7251 only supports this resolutions each with a different FPS
+/*
+ * OV7251 only supports this resolutions each with a different FPS according
+ * with datasheet but we are only being able to get 30fps in any of those
+ * resolution, this can be a problem with atomisp.
+ */
 static struct {
 	uint32_t width;
 	uint32_t height;
@@ -90,6 +94,7 @@ private:
 	bool _ready_to_send_msg = false;
 
 	uint32_t _camera_initial_timestamp = 0;
+	uint32_t _camera_prev_timestamp = 0;
 
 	Camera *_camera;
 	OpticalFlowOpenCV *_optical_flow;
@@ -174,19 +179,23 @@ void Mainloop::camera_callback(const void *img, size_t len, const struct timeval
 	imshow(_window_name, frame_gray);
 #endif
 
-	DEBUG("camera callback timestamp: sec=%lu usec=%lu", timestamp->tv_sec, timestamp->tv_usec);
-
 	uint32_t img_time_us = timestamp->tv_usec + timestamp->tv_sec * USEC_PER_SEC;
+	float fps = 0;
+
 	if (_camera_initial_timestamp) {
 		img_time_us -= _camera_initial_timestamp;
+		fps = 1.0f / ((float)(img_time_us - _camera_prev_timestamp) / USEC_PER_SEC);
 	} else {
 		_camera_initial_timestamp = img_time_us;
 		img_time_us = 0;
 	}
 
+	DEBUG("camera callback timestamp sec=%lu usec=%lu fps=%f", img_time_us / USEC_PER_SEC, img_time_us % USEC_PER_SEC, fps);
 
 	int quality = _optical_flow->calcFlow(frame_gray.data, img_time_us, dt_us, x, y);
 	DEBUG("Optical flow data: quality=%i x=%f y=%f dt_us=%i", quality, x, y, dt_us);
+
+	_camera_prev_timestamp = img_time_us;
 
 	if (!_ready_to_send_msg) {
 		DEBUG("Not ready to send optical flow message");
