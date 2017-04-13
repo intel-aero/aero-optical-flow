@@ -68,6 +68,7 @@ static struct {
 #define DEFAULT_RESOLUTION 1
 #define DEFAULT_IMG_WIDTH resolutions[DEFAULT_RESOLUTION].width
 #define DEFAULT_IMG_HEIGHT resolutions[DEFAULT_RESOLUTION].height
+#define DEFAULT_FLOW_OUTPUT_RATE 15
 
 #define DEFAULT_PIXEL_FORMAT V4L2_PIX_FMT_YUV420
 #define DEFAULT_DEVICE_ID 1
@@ -170,7 +171,7 @@ static void _camera_callback(const void *img, size_t len, const struct timeval *
 void Mainloop::camera_callback(const void *img, size_t len, const struct timeval *timestamp)
 {
 	int dt_us = 0;
-	float x = 0, y = 0;
+	float flow_x_ang = 0, flow_y_ang = 0;
 
 	Mat frame_gray = Mat(DEFAULT_IMG_HEIGHT, DEFAULT_IMG_WIDTH, CV_8UC1);
 	frame_gray.data = (uchar*)img;
@@ -190,10 +191,11 @@ void Mainloop::camera_callback(const void *img, size_t len, const struct timeval
 		img_time_us = 0;
 	}
 
-	int quality = _optical_flow->calcFlow(frame_gray.data, img_time_us, dt_us, x, y);
+	int flow_quality = _optical_flow->calcFlow(frame_gray.data, img_time_us, dt_us, flow_x_ang, flow_y_ang);
 
 #if DEBUG_LEVEL
-	DEBUG("Optical flow quality=%i x=%f y=%f timestamp sec=%lu usec=%lu fps=%f", quality, x, y, img_time_us / USEC_PER_SEC, img_time_us % USEC_PER_SEC, fps);
+	DEBUG("Optical flow quality=%i x=%f y=%f timestamp sec=%lu usec=%lu fps=%f", flow_quality, flow_x_ang, flow_y_ang,
+		img_time_us / USEC_PER_SEC, img_time_us % USEC_PER_SEC, fps);
 #endif
 
 	_camera_prev_timestamp = img_time_us;
@@ -203,11 +205,16 @@ void Mainloop::camera_callback(const void *img, size_t len, const struct timeval
 		return;
 	}
 
+	// check if flow is ready/integrated -> flow output rate
+	if (flow_quality < 0) {
+		return;
+	}
+
 	mavlink_optical_flow_rad_t msg;
 	msg.time_usec = timestamp->tv_usec + timestamp->tv_sec * USEC_PER_SEC;
 	msg.integration_time_us = dt_us;
-	msg.integrated_x = x;
-	msg.integrated_y = y;
+	msg.integrated_x = flow_x_ang;
+	msg.integrated_y = flow_y_ang;
 	msg.integrated_xgyro = _gyro_data.x;
 	msg.integrated_ygyro = _gyro_data.y;
 	msg.integrated_zgyro = _gyro_data.z;
@@ -215,7 +222,7 @@ void Mainloop::camera_callback(const void *img, size_t len, const struct timeval
 	msg.distance = -1.0;
 	msg.temperature = 0;
 	msg.sensor_id = 0;
-	msg.quality = quality;
+	msg.quality = flow_quality;
 
 	_mavlink->optical_flow_rad_msg_write(&msg);
 }
@@ -264,7 +271,7 @@ int Mainloop::run()
 
 	// TODO: get the real value of f_length_x and f_length_y
 	// TODO:  check that image format it uses
-	_optical_flow = new OpticalFlowOpenCV(1, 1, -1, DEFAULT_IMG_WIDTH, DEFAULT_IMG_HEIGHT);
+	_optical_flow = new OpticalFlowOpenCV(1, 1, DEFAULT_FLOW_OUTPUT_RATE, DEFAULT_IMG_WIDTH, DEFAULT_IMG_HEIGHT);
 	if (!_optical_flow) {
 		ERROR("No memory to instantiate OpticalFlowOpenCV");
 		goto optical_memory_error;
