@@ -229,6 +229,9 @@ int Camera::init(int device_id, uint32_t width, uint32_t height, uint32_t pixel_
 		goto error_starting;
 	}
 
+	this->width = width;
+	this->height = height;
+
 	return 0;
 
 error_starting:

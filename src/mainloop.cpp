@@ -31,6 +31,7 @@
  *
  ****************************************************************************/
 
+#include <getopt.h>
 #include <signal.h>
 #include <stdio.h>
 #include <poll.h>
@@ -72,11 +73,16 @@ static struct {
 #define DEFAULT_FLOW_OUTPUT_RATE 15
 
 #define DEFAULT_PIXEL_FORMAT V4L2_PIX_FMT_YUV420
+#define DEFAULT_DEVICE_FILE "/dev/video2"
 #define DEFAULT_DEVICE_ID 1
+
+#define MAVLINK_UDP_PORT 14555
 
 class Mainloop {
 public:
-	int run();
+	int run(const char *camera_device, int camera_id, uint32_t camera_width,
+			uint32_t camera_height, uint32_t crop_width, uint32_t crop_height,
+			unsigned long mavlink_udp_port, int flow_output_rate);
 
 	void camera_callback(const void *img, size_t len, const struct timeval *timestamp);
 	void highres_imu_msg_callback(const mavlink_highres_imu_t *msg);
@@ -86,7 +92,6 @@ private:
 #if DEBUG_LEVEL
 	const char *_window_name = "Aero down face camera test";
 #endif
-	const char *default_device = "/dev/video2";
 
 	struct gyro_data_t {
 		float x, y, z;
@@ -174,13 +179,13 @@ void Mainloop::camera_callback(const void *img, size_t len, const struct timeval
 	int dt_us = 0;
 	float flow_x_ang = 0, flow_y_ang = 0;
 
-	Mat frame_gray = Mat(DEFAULT_IMG_HEIGHT, DEFAULT_IMG_WIDTH, CV_8UC1);
+	Mat frame_gray = Mat(_camera->width, _camera->height, CV_8UC1);
 	frame_gray.data = (uchar*)img;
 
 	// crop the image (optical flow assumes narrow field of view)
-	cv::Rect crop(DEFAULT_IMG_WIDTH / 2 - DEFAULT_IMG_CROP_WIDTH / 2,
-			DEFAULT_IMG_HEIGHT / 2 - DEFAULT_IMG_CROP_HEIGHT / 2,
-			DEFAULT_IMG_CROP_WIDTH, DEFAULT_IMG_CROP_HEIGHT);
+	cv::Rect crop(_camera->width / 2 - _optical_flow->getImageWidth() / 2,
+			_camera->height / 2 - _optical_flow->getImageHeight() / 2,
+			_optical_flow->getImageWidth(), _optical_flow->getImageHeight());
 	cv::Mat cropped_image = frame_gray(crop);
 
 #if DEBUG_LEVEL
@@ -249,16 +254,20 @@ void Mainloop::highres_imu_msg_callback(const mavlink_highres_imu_t *msg)
 	_ready_to_send_msg = true;//TODO check liveness
 }
 
-int Mainloop::run()
+int Mainloop::run(const char *camera_device, int camera_id,
+		uint32_t camera_width, uint32_t camera_height, uint32_t crop_width,
+		uint32_t crop_height, unsigned long mavlink_udp_port,
+		int flow_output_rate)
 {
 	int ret;
 
-	_camera = new Camera(default_device);
+	_camera = new Camera(camera_device);
 	if (!_camera) {
 		ERROR("No memory to instantiate Camera");
 		return -1;
 	}
-	ret = _camera->init(DEFAULT_DEVICE_ID, DEFAULT_IMG_WIDTH, DEFAULT_IMG_HEIGHT, DEFAULT_PIXEL_FORMAT);
+	ret = _camera->init(camera_id, camera_width, camera_height,
+			DEFAULT_PIXEL_FORMAT);
 	if (ret) {
 		ERROR("Unable to initialize camera");
 		goto camera_init_error;
@@ -269,7 +278,7 @@ int Mainloop::run()
 		ERROR("No memory to instantiate Mavlink_UDP");
 		goto mavlink_memory_error;
 	}
-	ret = _mavlink->init("127.0.0.1", 14555);
+	ret = _mavlink->init("127.0.0.1", mavlink_udp_port);
 	if (ret) {
 		ERROR("Unable to initialize mavlink");
 		goto mavlink_init_error;
@@ -277,8 +286,8 @@ int Mainloop::run()
 	_mavlink->highres_imu_msg_subscribe(_highres_imu_msg_callback, this);
 
 	// TODO: get the real value of f_length_x and f_length_y
-	// TODO: user input for img width/height, rate, etc.
-	_optical_flow = new OpticalFlowOpenCV(1, 1, DEFAULT_FLOW_OUTPUT_RATE, DEFAULT_IMG_CROP_WIDTH, DEFAULT_IMG_CROP_HEIGHT);
+	_optical_flow = new OpticalFlowOpenCV(1, 1, flow_output_rate, crop_width,
+			crop_height);
 	if (!_optical_flow) {
 		ERROR("No memory to instantiate OpticalFlowOpenCV");
 		goto optical_memory_error;
@@ -313,8 +322,162 @@ camera_init_error:
 	return -1;
 }
 
-int main()
+static int safe_atoul(const char *s, unsigned long *ret)
+{
+	char *x = NULL;
+	unsigned long l;
+
+	errno = 0;
+	l = strtoul(s, &x, 0);
+
+	if (!x || x == s || *x || errno)
+		return errno ? -errno : -EINVAL;
+
+	*ret = l;
+
+	return 0;
+}
+
+static int safe_atoi(const char *s, int *ret)
+{
+	char *x = NULL;
+	long l;
+
+	errno = 0;
+	l = strtol(s, &x, 0);
+
+	if (!x || x == s || *x || errno)
+		return errno > 0 ? -errno : -EINVAL;
+
+	if ((long) (int) l != l)
+		return -ERANGE;
+
+	*ret = (int) l;
+	return 0;
+}
+
+static void help()
+{
+	printf("%s [OPTIONS...]\n\n"
+			"  -c --camera_device       Camera filepath\n"
+			"                           Default %s\n"
+			"  -i --camera_id           Camera id\n"
+			"                           Default %u\n"
+			"  -w --camera_width        Width of the video streaming from camera\n"
+			"                           Default %u\n"
+			"  -h --camera_height       Height of the video streaming from camera\n"
+			"                           Default %u\n"
+			"  -x --crop_width          Video width that will be used to calculate optical flow\n"
+			"                           Default %u\n"
+			"  -y --crop_height         Video height that will be used to calculate optical flow\n"
+			"                           Default %u\n"
+			"  -o --flow_output_rate    Output rate of the optical flow\n"
+			"                           Default %u\n"
+			"  -p --mavlink_udp_port    MAVLink UDP port where it will listen and send messages\n"
+			"                           Default %u\n"
+			,
+			program_invocation_short_name,
+			DEFAULT_DEVICE_FILE,
+			DEFAULT_DEVICE_ID,
+			DEFAULT_IMG_WIDTH,
+			DEFAULT_IMG_HEIGHT,
+			DEFAULT_IMG_CROP_WIDTH,
+			DEFAULT_IMG_CROP_HEIGHT,
+			DEFAULT_OUTPUT_RATE,
+			MAVLINK_UDP_PORT);
+}
+
+int main (int argc, char *argv[])
 {
 	Mainloop mainloop;
-	return mainloop.run();
+	int c;
+	const struct option options[] = {
+			{ "camera_device",			required_argument,	NULL,	'c' },
+			{ "camera_id",				required_argument,	NULL,	'i' },
+			{ "camera_width",			required_argument,	NULL,	'w' },
+			{ "camera_height",			required_argument,	NULL,	'h' },
+			{ "crop_width",				required_argument,	NULL,	'x' },
+			{ "crop_height",			required_argument,	NULL,	'y' },
+			{ "flow_output_rate",		required_argument,	NULL,	'o' },
+			{ "mavlink_udp_port",		required_argument,	NULL,	'p' },
+			{ }
+	};
+	const char *camera_device = DEFAULT_DEVICE_FILE;
+	unsigned long camera_id = DEFAULT_DEVICE_ID;
+	unsigned long camera_width = DEFAULT_IMG_WIDTH;
+	unsigned long camera_height = DEFAULT_IMG_HEIGHT;
+	unsigned long crop_width = DEFAULT_IMG_CROP_WIDTH;
+	unsigned long crop_height = DEFAULT_IMG_CROP_HEIGHT;
+	unsigned long mavlink_udp_port = MAVLINK_UDP_PORT;
+	int flow_output_rate = DEFAULT_FLOW_OUTPUT_RATE;
+
+	while ((c = getopt_long(argc, argv, "?c:i:w:h:x:y:o", options, NULL)) >= 0) {
+		switch (c) {
+		case '?':
+			help();
+			return 0;
+		case 'c':
+			camera_device = optarg;
+			break;
+		case 'i':
+			if (safe_atoul(optarg, &camera_id) < 0) {
+				ERROR("Invalid argument for camera_id = %s", optarg);
+				help();
+				return -EINVAL;
+			}
+			break;
+		case 'w':
+			if (safe_atoul(optarg, &camera_width) < 0) {
+				ERROR("Invalid argument for camera_width = %s", optarg);
+				help();
+				return -EINVAL;
+			}
+			break;
+		case 'h':
+			if (safe_atoul(optarg, &camera_height) < 0) {
+				ERROR("Invalid argument for camera_height = %s", optarg);
+				help();
+				return -EINVAL;
+			}
+			break;
+		case 'x':
+			if (safe_atoul(optarg, &crop_width) < 0) {
+				ERROR("Invalid argument for crop_width = %s", optarg);
+				help();
+				return -EINVAL;
+			}
+			break;
+		case 'y':
+			if (safe_atoul(optarg, &crop_height) < 0) {
+				ERROR("Invalid argument for crop_height = %s", optarg);
+				help();
+				return -EINVAL;
+			}
+			break;
+		case 'o':
+			if (safe_atoi(optarg, &flow_output_rate) < 0) {
+				ERROR("Invalid argument for flow_output_rate = %s", optarg);
+				help();
+				return -EINVAL;
+			}
+			break;
+		case 'p':
+			if (safe_atoul(optarg, &mavlink_udp_port) < 0) {
+				ERROR("Invalid argument for mavlink_udp_port = %s", optarg);
+				help();
+				return -EINVAL;
+			}
+			break;
+		default:
+			help();
+			return -EINVAL;
+		}
+	}
+
+	printf("Parameters:\n\tcamera_device=%s\n\tcamera_id=%u\n\tcamera_width=%u\n", camera_device, camera_id, camera_width);
+	printf("\tcamera_height=%u\n\tcrop_width=%u\n\tcrop_height=%u\n", camera_height, crop_width, crop_height);
+	printf("\tflow_output_rate=%i\n\tmavlink_udp_port=%u\n", flow_output_rate, mavlink_udp_port);
+
+	return mainloop.run(camera_device, camera_id, camera_width, camera_height,
+			crop_width, crop_height, mavlink_udp_port, flow_output_rate);
 }

@@ -42,6 +42,8 @@
 
 class Camera : public Pollable {
 public:
+	uint32_t width, height;
+
 	Camera(const char *device);
 	virtual ~Camera();
 
