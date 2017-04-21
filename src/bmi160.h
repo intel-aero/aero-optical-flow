@@ -33,22 +33,40 @@
 
 #pragma once
 
-#include <stdint.h>
+#include <opencv2/opencv.hpp>
 
-typedef uint64_t usec_t;
-typedef uint64_t nsec_t;
+#include "pollable.h"
+#include "spi.h"
 
-#define MSEC_PER_SEC  1000ULL
-#define USEC_PER_SEC  ((usec_t) 1000000ULL)
-#define USEC_PER_MSEC ((usec_t) 1000ULL)
-#define NSEC_PER_SEC  ((nsec_t) 1000000000ULL)
-#define NSEC_PER_MSEC ((nsec_t) 1000000ULL)
-#define NSEC_PER_USEC ((nsec_t) 1000ULL)
+using namespace cv;
 
-#define GRAVITY_MSS     9.80665f
-#define M_PI_F 3.14159265358979323846f
+class BMI160 : public Pollable {
+public:
+	BMI160(const char *spi_device);
+	virtual ~BMI160();
+	int init();
+	int start();
+	void stop();
 
-inline float radians(float degrees)
-{
-	return (degrees / 180.0f) * M_PI_F;
-}
+	void gyro_integrated_get(Point3_<double> *gyro, struct timespec *t);
+
+	void handle_read() override;
+	bool handle_canwrite() override;
+
+private:
+	SPI *_spi;
+
+	double _accel_scale;
+	double _gyro_scale;
+
+	Point3_<double> _gyro_integrated;
+	struct timespec _gyro_last_update;
+
+	bool write_register(uint8_t reg, uint8_t val);
+	bool read_register(uint8_t reg, uint8_t *revc, uint16_t recv_len);
+
+	bool _configure_accel();
+	bool _configure_gyro();
+    bool _configure_fifo();
+    void _read_fifo();
+};

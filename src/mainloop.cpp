@@ -43,6 +43,7 @@
 
 #include <mavlink.h>
 
+#include "bmi160.h"
 #include "config.h"
 #include "camera.h"
 #include "mavlink_udp.h"
@@ -109,6 +110,7 @@ private:
 	Camera *_camera;
 	OpticalFlowOpenCV *_optical_flow;
 	Mavlink_UDP *_mavlink;
+	BMI160 *_bmi;
 
 	void signal_handlers_setup();
 	void loop();
@@ -297,6 +299,20 @@ int Mainloop::run(const char *camera_device, int camera_id,
 	}
 	_camera->callback_set(_camera_callback, this);
 
+	_bmi = new BMI160("/dev/spidev3.0");
+	if (!_bmi) {
+		ERROR("No memory to allocate BMI160");
+		goto bmi_memory;
+	}
+	if (_bmi->init()) {
+		ERROR("BMI160 init error");
+		goto bmi_error;
+	}
+	if (_bmi->start()) {
+		ERROR("BMI160 start error");
+		goto bmi_error;
+	}
+
 #if DEBUG_LEVEL
 	namedWindow(_window_name, WINDOW_AUTOSIZE);
 	startWindowThread();
@@ -308,6 +324,8 @@ int Mainloop::run(const char *camera_device, int camera_id,
 	destroyAllWindows();
 #endif
 
+	_bmi->stop();
+	delete _bmi;
 	delete _optical_flow;
 	delete _mavlink;
 	_camera->shutdown();
@@ -315,6 +333,10 @@ int Mainloop::run(const char *camera_device, int camera_id,
 
 	return 0;
 
+bmi_error:
+	delete _bmi;
+bmi_memory:
+	delete _optical_flow;
 optical_memory_error:
 mavlink_init_error:
 	delete _mavlink;
