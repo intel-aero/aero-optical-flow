@@ -423,7 +423,7 @@ int main (int argc, char *argv[])
 	unsigned long mavlink_udp_port = MAVLINK_UDP_PORT;
 	int flow_output_rate = DEFAULT_FLOW_OUTPUT_RATE;
 
-	while ((c = getopt_long(argc, argv, "?c:i:w:h:x:y:o", options, NULL)) >= 0) {
+	while ((c = getopt_long(argc, argv, "?c:i:w:h:x:y:o:p:", options, NULL)) >= 0) {
 		switch (c) {
 		case '?':
 			help();
