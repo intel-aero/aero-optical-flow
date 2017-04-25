@@ -179,7 +179,7 @@ void Mainloop::camera_callback(const void *img, size_t len, const struct timeval
 	int dt_us = 0;
 	float flow_x_ang = 0, flow_y_ang = 0;
 
-	Mat frame_gray = Mat(_camera->width, _camera->height, CV_8UC1);
+	Mat frame_gray = Mat(_camera->height, _camera->width, CV_8UC1);
 	frame_gray.data = (uchar*)img;
 
 	// crop the image (optical flow assumes narrow field of view)
