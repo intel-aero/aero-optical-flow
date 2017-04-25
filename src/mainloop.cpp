@@ -94,13 +94,6 @@ private:
 	const char *_window_name = "Aero down face camera test";
 #endif
 
-	struct gyro_data_t {
-		float x, y, z;
-		uint64_t time_usec;
-	} _gyro_data;
-
-	bool _ready_to_send_msg = false;
-
 	uint32_t _camera_initial_timestamp = 0;
 	uint32_t _camera_prev_timestamp = 0;
 
@@ -108,6 +101,8 @@ private:
 	OpticalFlowOpenCV *_optical_flow;
 	Mavlink_UDP *_mavlink;
 	BMI160 *_bmi;
+
+	struct timespec _gyro_last_timespec;
 
 	void signal_handlers_setup();
 	void loop();
@@ -135,7 +130,7 @@ void Mainloop::signal_handlers_setup(void)
 
 void Mainloop::loop()
 {
-	Pollable *pollables[] = { _camera, _mavlink };
+	Pollable *pollables[] = { _camera, _bmi, _mavlink };
 	const uint8_t len = sizeof(pollables) / sizeof(Pollable *);
 	struct pollfd desc[len];
 
@@ -214,10 +209,21 @@ void Mainloop::camera_callback(const void *img, size_t len, const struct timeval
 
 	_camera_prev_timestamp = img_time_us;
 
-	if (!_ready_to_send_msg) {
-		DEBUG("Not ready to send optical flow message");
+	Point3_<double> gyro_data;
+	struct timespec gyro_timespec;
+	_bmi->gyro_integrated_get(&gyro_data, &gyro_timespec);
+
+	// check liveness of BMI160
+	if (_gyro_last_timespec.tv_sec == gyro_timespec.tv_sec
+			&& _gyro_last_timespec.tv_nsec == gyro_timespec.tv_nsec) {
+		DEBUG("No new gyroscope data available, sensor is working?");
 		return;
 	}
+	_gyro_last_timespec = gyro_timespec;
+
+#if DEBUG_LEVEL
+	DEBUG("Gyro data(%f %f %f)", gyro_data.x, gyro_data.y, gyro_data.z);
+#endif
 
 	// check if flow is ready/integrated -> flow output rate
 	if (flow_quality < 0) {
@@ -229,9 +235,9 @@ void Mainloop::camera_callback(const void *img, size_t len, const struct timeval
 	msg.integration_time_us = dt_us;
 	msg.integrated_x = flow_x_ang;
 	msg.integrated_y = flow_y_ang;
-	msg.integrated_xgyro = _gyro_data.x;
-	msg.integrated_ygyro = _gyro_data.y;
-	msg.integrated_zgyro = _gyro_data.z;
+	msg.integrated_xgyro = gyro_data.x;
+	msg.integrated_ygyro = gyro_data.y;
+	msg.integrated_zgyro = gyro_data.z;
 	msg.time_delta_distance_us = 0;
 	msg.distance = -1.0;
 	msg.temperature = 0;
@@ -239,21 +245,6 @@ void Mainloop::camera_callback(const void *img, size_t len, const struct timeval
 	msg.quality = flow_quality;
 
 	_mavlink->optical_flow_rad_msg_write(&msg);
-}
-
-static void _highres_imu_msg_callback(const mavlink_highres_imu_t *msg, void *data)
-{
-	Mainloop *mainloop = (Mainloop *)data;
-	mainloop->highres_imu_msg_callback(msg);
-}
-
-void Mainloop::highres_imu_msg_callback(const mavlink_highres_imu_t *msg)
-{
-	_gyro_data.x = msg->xgyro;
-	_gyro_data.y = msg->ygyro;
-	_gyro_data.z = msg->zgyro;
-	_gyro_data.time_usec = msg->time_usec;
-	_ready_to_send_msg = true;//TODO check liveness
 }
 
 int Mainloop::run(const char *camera_device, int camera_id,
@@ -285,7 +276,6 @@ int Mainloop::run(const char *camera_device, int camera_id,
 		ERROR("Unable to initialize mavlink");
 		goto mavlink_init_error;
 	}
-	_mavlink->highres_imu_msg_subscribe(_highres_imu_msg_callback, this);
 
 	// TODO: get the real value of f_length_x and f_length_y
 	_optical_flow = new OpticalFlowOpenCV(1, 1, flow_output_rate, crop_width,
