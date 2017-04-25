@@ -42,7 +42,7 @@ using namespace cv;
 
 class BMI160 : public Pollable {
 public:
-	BMI160(const char *spi_device);
+	BMI160(const char *spi_device, const char *parameters_folder);
 	virtual ~BMI160();
 	int init();
 	int start();
@@ -64,6 +64,7 @@ private:
 	Point3_<double> _gyro_integrated;
 	struct timespec _gyro_last_update;
 
+	const char *_parameters_folder;
 	Point3_<double> _gyro_offsets;
 	uint32_t _calibration_samples_counter = 0;
 	int _calibration_load();

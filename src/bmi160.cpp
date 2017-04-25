@@ -135,9 +135,10 @@ struct __attribute__((__packed__)) RawData
 	} accel;
 };
 
-BMI160::BMI160(const char *spi_device)
+BMI160::BMI160(const char *spi_device, const char *parameters_folder)
 {
 	_spi = new SPI(spi_device);
+	_parameters_folder = parameters_folder;
 }
 
 BMI160::~BMI160()
@@ -367,9 +368,12 @@ read_fifo_end:
 
 int BMI160::_calibration_load()
 {
-	int fd = open(BMI160_PARAMETERS_FILE, O_RDONLY);
+	char path[strlen(_parameters_folder) + strlen(BMI160_PARAMETERS_FILE)];
+
+	sprintf(path, "%s/%s", _parameters_folder, BMI160_PARAMETERS_FILE);
+	int fd = open(path, O_RDONLY);
 	if (fd < 0) {
-		ERROR("BMI160 Unable to open %s", BMI160_PARAMETERS_FILE);
+		ERROR("BMI160 Unable to open %s", path);
 		return -1;
 	}
 
@@ -408,9 +412,12 @@ end:
 
 int BMI160::_calibration_save()
 {
-	int fd = open(BMI160_PARAMETERS_FILE, O_WRONLY | O_CREAT | O_TRUNC);
+	char path[strlen(_parameters_folder) + strlen(BMI160_PARAMETERS_FILE)];
+
+	sprintf(path, "%s/%s", _parameters_folder, BMI160_PARAMETERS_FILE);
+	int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC);
 	if (fd < 0) {
-		ERROR("BMI160 Unable to open %s", BMI160_PARAMETERS_FILE);
+		ERROR("BMI160 Unable to open %s", path);
 		return -1;
 	}
 

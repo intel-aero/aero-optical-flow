@@ -81,12 +81,15 @@ static struct {
 
 #define MAVLINK_UDP_PORT 14555
 
+#define DEFAULT_PARAMETERS_FOLDER "."
+
 class Mainloop {
 public:
 	int run(const char *camera_device, int camera_id, uint32_t camera_width,
 			uint32_t camera_height, uint32_t crop_width, uint32_t crop_height,
 			unsigned long mavlink_udp_port, int flow_output_rate,
-			float focal_length_x, float focal_length_y, bool calibrate_bmi);
+			float focal_length_x, float focal_length_y, bool calibrate_bmi,
+			const char *parameters_folder);
 
 	void camera_callback(const void *img, size_t len, const struct timeval *timestamp);
 	void highres_imu_msg_callback(const mavlink_highres_imu_t *msg);
@@ -254,7 +257,7 @@ int Mainloop::run(const char *camera_device, int camera_id,
 		uint32_t camera_width, uint32_t camera_height, uint32_t crop_width,
 		uint32_t crop_height, unsigned long mavlink_udp_port,
 		int flow_output_rate, float focal_length_x, float focal_length_y,
-		bool calibrate_bmi)
+		bool calibrate_bmi, const char *parameters_folder)
 {
 	int ret;
 
@@ -290,7 +293,7 @@ int Mainloop::run(const char *camera_device, int camera_id,
 	}
 	_camera->callback_set(_camera_callback, this);
 
-	_bmi = new BMI160("/dev/spidev3.0");
+	_bmi = new BMI160("/dev/spidev3.0", parameters_folder);
 	if (!_bmi) {
 		ERROR("No memory to allocate BMI160");
 		goto bmi_memory;
@@ -408,6 +411,8 @@ static void help()
 			"  -f --focal_length        Set camera focal lenght in pixels\n"
 			"                           Default %fx%f\n"
 			"  -b --bmi160_calibrate    Calibrate BMI160\n"
+			"  -a --parameters_folder   Default parameters folder\n"
+			"                           Default %s\n"
 			,
 			program_invocation_short_name,
 			DEFAULT_DEVICE_FILE,
@@ -419,7 +424,8 @@ static void help()
 			DEFAULT_OUTPUT_RATE,
 			MAVLINK_UDP_PORT,
 			DEFAULT_FOCAL_LENGTH_X,
-			DEFAULT_FOCAL_LENGTH_Y);
+			DEFAULT_FOCAL_LENGTH_Y,
+			DEFAULT_PARAMETERS_FOLDER);
 }
 
 static int x_y_split(char *arg, unsigned long *x, unsigned long *y)
@@ -483,6 +489,7 @@ int main (int argc, char *argv[])
 			{ "mavlink_udp_port",		required_argument,	NULL,	'p' },
 			{ "focal_length",			required_argument,	NULL,	'f' },
 			{ "bmi160_calibrate",		no_argument,		NULL,	'b' },
+			{ "parameters_folder",		required_argument,  NULL,   'a' },
 			{ }
 	};
 	const char *camera_device = DEFAULT_DEVICE_FILE;
@@ -496,8 +503,9 @@ int main (int argc, char *argv[])
 	float focal_length_x = DEFAULT_FOCAL_LENGTH_X;
 	float focal_length_y = DEFAULT_FOCAL_LENGTH_Y;
 	bool bmi160_calibrate = false;
+	const char *parameter_folder = DEFAULT_PARAMETERS_FOLDER;
 
-	while ((c = getopt_long(argc, argv, "?c:i:r:x:o:p:f:b", options, NULL)) >= 0) {
+	while ((c = getopt_long(argc, argv, "?c:i:r:x:o:p:f:ba:", options, NULL)) >= 0) {
 		switch (c) {
 		case '?':
 			help();
@@ -538,6 +546,9 @@ int main (int argc, char *argv[])
 		case 'b':
 			bmi160_calibrate = true;
 			break;
+		case 'a':
+			parameter_folder = optarg;
+			break;
 		default:
 			help();
 			return -EINVAL;
@@ -548,8 +559,9 @@ int main (int argc, char *argv[])
 	printf("\tcamera_height=%u\n\tcrop_width=%u\n\tcrop_height=%u\n", camera_height, crop_width, crop_height);
 	printf("\tflow_output_rate=%i\n\tmavlink_udp_port=%u\n", flow_output_rate, mavlink_udp_port);
 	printf("\tfocal_length_x=%f\n\tfocal_length_y=%f\n\tbmi160_calibrate=%u\n", focal_length_x, focal_length_y, bmi160_calibrate);
+	printf("\tparameter_folder=%s\n", parameter_folder);
 
 	return mainloop.run(camera_device, camera_id, camera_width, camera_height,
 			crop_width, crop_height, mavlink_udp_port, flow_output_rate,
-			focal_length_x, focal_length_y, bmi160_calibrate);
+			focal_length_x, focal_length_y, bmi160_calibrate, parameter_folder);
 }
