@@ -277,8 +277,8 @@ int Mainloop::run(const char *camera_device, int camera_id,
 		goto mavlink_init_error;
 	}
 
-	// TODO: get the real value of f_length_x and f_length_y
-	_optical_flow = new OpticalFlowOpenCV(1, 1, flow_output_rate, crop_width,
+	// TODO: load parameters from yaml file
+	_optical_flow = new OpticalFlowOpenCV(216.6677, 216.2457, flow_output_rate, crop_width,
 			crop_height);
 	if (!_optical_flow) {
 		ERROR("No memory to instantiate OpticalFlowOpenCV");
