@@ -71,6 +71,8 @@ static struct {
 #define DEFAULT_IMG_CROP_WIDTH 128
 #define DEFAULT_IMG_CROP_HEIGHT 128
 #define DEFAULT_FLOW_OUTPUT_RATE 15
+#define DEFAULT_FOCAL_LENGTH_X 216.6677
+#define DEFAULT_FOCAL_LENGTH_Y 216.2457
 
 #define DEFAULT_PIXEL_FORMAT V4L2_PIX_FMT_YUV420
 #define DEFAULT_DEVICE_FILE "/dev/video2"
@@ -82,7 +84,8 @@ class Mainloop {
 public:
 	int run(const char *camera_device, int camera_id, uint32_t camera_width,
 			uint32_t camera_height, uint32_t crop_width, uint32_t crop_height,
-			unsigned long mavlink_udp_port, int flow_output_rate);
+			unsigned long mavlink_udp_port, int flow_output_rate,
+			float focal_length_x, float focal_length_y);
 
 	void camera_callback(const void *img, size_t len, const struct timeval *timestamp);
 	void highres_imu_msg_callback(const mavlink_highres_imu_t *msg);
@@ -257,7 +260,7 @@ void Mainloop::highres_imu_msg_callback(const mavlink_highres_imu_t *msg)
 int Mainloop::run(const char *camera_device, int camera_id,
 		uint32_t camera_width, uint32_t camera_height, uint32_t crop_width,
 		uint32_t crop_height, unsigned long mavlink_udp_port,
-		int flow_output_rate)
+		int flow_output_rate, float focal_length_x, float focal_length_y)
 {
 	int ret;
 
@@ -286,7 +289,7 @@ int Mainloop::run(const char *camera_device, int camera_id,
 	_mavlink->highres_imu_msg_subscribe(_highres_imu_msg_callback, this);
 
 	// TODO: load parameters from yaml file
-	_optical_flow = new OpticalFlowOpenCV(216.6677, 216.2457, flow_output_rate, crop_width,
+	_optical_flow = new OpticalFlowOpenCV(focal_length_x, focal_length_y, flow_output_rate, crop_width,
 			crop_height);
 	if (!_optical_flow) {
 		ERROR("No memory to instantiate OpticalFlowOpenCV");
@@ -356,6 +359,21 @@ static int safe_atoi(const char *s, int *ret)
 	return 0;
 }
 
+static int safe_atof(const char *s, float *ret)
+{
+	char *x = NULL;
+	float l;
+
+	errno = 0;
+	l = strtof(s, &x);
+
+	if (!x || x == s || *x || errno)
+		return errno > 0 ? -errno : -EINVAL;
+
+	*ret = (float) l;
+	return 0;
+}
+
 static void help()
 {
 	printf("%s [OPTIONS...]\n\n"
@@ -375,6 +393,8 @@ static void help()
 			"                           Default %u\n"
 			"  -p --mavlink_udp_port    MAVLink UDP port where it will listen and send messages\n"
 			"                           Default %u\n"
+			"  -f --focal_length        Set camera focal lenght in pixels\n"
+			"                           Default %fx%f\n"
 			,
 			program_invocation_short_name,
 			DEFAULT_DEVICE_FILE,
@@ -384,7 +404,32 @@ static void help()
 			DEFAULT_IMG_CROP_WIDTH,
 			DEFAULT_IMG_CROP_HEIGHT,
 			DEFAULT_OUTPUT_RATE,
-			MAVLINK_UDP_PORT);
+			MAVLINK_UDP_PORT,
+			DEFAULT_FOCAL_LENGTH_X,
+			DEFAULT_FOCAL_LENGTH_Y);
+}
+
+static int x_y_float_split(char *arg, float *x, float *y)
+{
+	char *divider = strchrnul(optarg, 'x');
+	const char *x_str, *y_str;
+
+	if (!divider) {
+		return -1;
+	}
+
+	x_str = optarg;
+	y_str = divider + 1;
+	*divider = '\0';
+
+	if (safe_atof(x_str, x)) {
+		return -1;
+	}
+	if (safe_atof(y_str, y)) {
+		return -1;
+	}
+
+	return 0;
 }
 
 int main (int argc, char *argv[])
@@ -400,6 +445,7 @@ int main (int argc, char *argv[])
 			{ "crop_height",			required_argument,	NULL,	'y' },
 			{ "flow_output_rate",		required_argument,	NULL,	'o' },
 			{ "mavlink_udp_port",		required_argument,	NULL,	'p' },
+			{ "focal_length",			required_argument,	NULL,	'f' },
 			{ }
 	};
 	const char *camera_device = DEFAULT_DEVICE_FILE;
@@ -410,8 +456,10 @@ int main (int argc, char *argv[])
 	unsigned long crop_height = DEFAULT_IMG_CROP_HEIGHT;
 	unsigned long mavlink_udp_port = MAVLINK_UDP_PORT;
 	int flow_output_rate = DEFAULT_FLOW_OUTPUT_RATE;
+	float focal_length_x = DEFAULT_FOCAL_LENGTH_X;
+	float focal_length_y = DEFAULT_FOCAL_LENGTH_Y;
 
-	while ((c = getopt_long(argc, argv, "?c:i:w:h:x:y:o:p:", options, NULL)) >= 0) {
+	while ((c = getopt_long(argc, argv, "?c:i:w:h:x:y:o:p:f:", options, NULL)) >= 0) {
 		switch (c) {
 		case '?':
 			help();
@@ -468,6 +516,10 @@ int main (int argc, char *argv[])
 				return -EINVAL;
 			}
 			break;
+		case 'f': {
+			x_y_float_split(optarg, &focal_length_x, &focal_length_y);
+			break;
+		}
 		default:
 			help();
 			return -EINVAL;
@@ -477,7 +529,9 @@ int main (int argc, char *argv[])
 	printf("Parameters:\n\tcamera_device=%s\n\tcamera_id=%u\n\tcamera_width=%u\n", camera_device, camera_id, camera_width);
 	printf("\tcamera_height=%u\n\tcrop_width=%u\n\tcrop_height=%u\n", camera_height, crop_width, crop_height);
 	printf("\tflow_output_rate=%i\n\tmavlink_udp_port=%u\n", flow_output_rate, mavlink_udp_port);
+	printf("\tfocal_length_x=%f\n\tfocal_length_y=%f\n", focal_length_x, focal_length_y);
 
 	return mainloop.run(camera_device, camera_id, camera_width, camera_height,
-			crop_width, crop_height, mavlink_udp_port, flow_output_rate);
+			crop_width, crop_height, mavlink_udp_port, flow_output_rate,
+			focal_length_x, focal_length_y);
 }
