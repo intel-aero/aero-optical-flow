@@ -381,14 +381,10 @@ static void help()
 			"                           Default %s\n"
 			"  -i --camera_id           Camera id\n"
 			"                           Default %u\n"
-			"  -w --camera_width        Width of the video streaming from camera\n"
-			"                           Default %u\n"
-			"  -h --camera_height       Height of the video streaming from camera\n"
-			"                           Default %u\n"
-			"  -x --crop_width          Video width that will be used to calculate optical flow\n"
-			"                           Default %u\n"
-			"  -y --crop_height         Video height that will be used to calculate optical flow\n"
-			"                           Default %u\n"
+			"  -r --camera_resolution   Resolution of the video streaming from camera\n"
+			"                           Default %ux%u\n"
+			"  -x --crop_resolution     Resolution of the video that will be used to calculate optical flow\n"
+			"                           Default %ux%u\n"
 			"  -o --flow_output_rate    Output rate of the optical flow\n"
 			"                           Default %u\n"
 			"  -p --mavlink_udp_port    MAVLink UDP port where it will listen and send messages\n"
@@ -407,6 +403,29 @@ static void help()
 			MAVLINK_UDP_PORT,
 			DEFAULT_FOCAL_LENGTH_X,
 			DEFAULT_FOCAL_LENGTH_Y);
+}
+
+static int x_y_split(char *arg, unsigned long *x, unsigned long *y)
+{
+	char *divider = strchrnul(optarg, 'x');
+	const char *x_str, *y_str;
+
+	if (!divider) {
+		return -1;
+	}
+
+	x_str = optarg;
+	y_str = divider + 1;
+	*divider = '\0';
+
+	if (safe_atoul(x_str, x)) {
+		return -1;
+	}
+	if (safe_atoul(y_str, y)) {
+		return -1;
+	}
+
+	return 0;
 }
 
 static int x_y_float_split(char *arg, float *x, float *y)
@@ -459,7 +478,7 @@ int main (int argc, char *argv[])
 	float focal_length_x = DEFAULT_FOCAL_LENGTH_X;
 	float focal_length_y = DEFAULT_FOCAL_LENGTH_Y;
 
-	while ((c = getopt_long(argc, argv, "?c:i:w:h:x:y:o:p:f:", options, NULL)) >= 0) {
+	while ((c = getopt_long(argc, argv, "?c:i:r:x:o:p:f:", options, NULL)) >= 0) {
 		switch (c) {
 		case '?':
 			help();
@@ -474,33 +493,11 @@ int main (int argc, char *argv[])
 				return -EINVAL;
 			}
 			break;
-		case 'w':
-			if (safe_atoul(optarg, &camera_width) < 0) {
-				ERROR("Invalid argument for camera_width = %s", optarg);
-				help();
-				return -EINVAL;
-			}
-			break;
-		case 'h':
-			if (safe_atoul(optarg, &camera_height) < 0) {
-				ERROR("Invalid argument for camera_height = %s", optarg);
-				help();
-				return -EINVAL;
-			}
+		case 'r':
+			x_y_split(optarg, &camera_width, &camera_height);
 			break;
 		case 'x':
-			if (safe_atoul(optarg, &crop_width) < 0) {
-				ERROR("Invalid argument for crop_width = %s", optarg);
-				help();
-				return -EINVAL;
-			}
-			break;
-		case 'y':
-			if (safe_atoul(optarg, &crop_height) < 0) {
-				ERROR("Invalid argument for crop_height = %s", optarg);
-				help();
-				return -EINVAL;
-			}
+			x_y_split(optarg, &crop_width, &crop_height);
 			break;
 		case 'o':
 			if (safe_atoi(optarg, &flow_output_rate) < 0) {
