@@ -47,6 +47,8 @@ public:
 	int init();
 	int start();
 	void stop();
+	/* Should be called before start() */
+	void calibrate();
 
 	void gyro_integrated_get(Point3_<double> *gyro, struct timespec *t);
 
@@ -61,6 +63,11 @@ private:
 
 	Point3_<double> _gyro_integrated;
 	struct timespec _gyro_last_update;
+
+	Point3_<double> _gyro_offsets;
+	uint32_t _calibration_samples_counter = 0;
+	int _calibration_load();
+	int _calibration_save();
 
 	bool write_register(uint8_t reg, uint8_t val);
 	bool read_register(uint8_t reg, uint8_t *revc, uint16_t recv_len);

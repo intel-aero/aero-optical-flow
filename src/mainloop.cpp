@@ -86,7 +86,7 @@ public:
 	int run(const char *camera_device, int camera_id, uint32_t camera_width,
 			uint32_t camera_height, uint32_t crop_width, uint32_t crop_height,
 			unsigned long mavlink_udp_port, int flow_output_rate,
-			float focal_length_x, float focal_length_y);
+			float focal_length_x, float focal_length_y, bool calibrate_bmi);
 
 	void camera_callback(const void *img, size_t len, const struct timeval *timestamp);
 	void highres_imu_msg_callback(const mavlink_highres_imu_t *msg);
@@ -219,7 +219,7 @@ void Mainloop::camera_callback(const void *img, size_t len, const struct timeval
 	// check liveness of BMI160
 	if (_gyro_last_timespec.tv_sec == gyro_timespec.tv_sec
 			&& _gyro_last_timespec.tv_nsec == gyro_timespec.tv_nsec) {
-		DEBUG("No new gyroscope data available, sensor is working?");
+		DEBUG("No new gyroscope data available, sensor is calibrating?");
 		return;
 	}
 	_gyro_last_timespec = gyro_timespec;
@@ -253,7 +253,8 @@ void Mainloop::camera_callback(const void *img, size_t len, const struct timeval
 int Mainloop::run(const char *camera_device, int camera_id,
 		uint32_t camera_width, uint32_t camera_height, uint32_t crop_width,
 		uint32_t crop_height, unsigned long mavlink_udp_port,
-		int flow_output_rate, float focal_length_x, float focal_length_y)
+		int flow_output_rate, float focal_length_x, float focal_length_y,
+		bool calibrate_bmi)
 {
 	int ret;
 
@@ -297,6 +298,9 @@ int Mainloop::run(const char *camera_device, int camera_id,
 	if (_bmi->init()) {
 		ERROR("BMI160 init error");
 		goto bmi_error;
+	}
+	if (calibrate_bmi) {
+		_bmi->calibrate();
 	}
 	if (_bmi->start()) {
 		ERROR("BMI160 start error");
@@ -403,6 +407,7 @@ static void help()
 			"                           Default %u\n"
 			"  -f --focal_length        Set camera focal lenght in pixels\n"
 			"                           Default %fx%f\n"
+			"  -b --bmi160_calibrate    Calibrate BMI160\n"
 			,
 			program_invocation_short_name,
 			DEFAULT_DEVICE_FILE,
@@ -477,6 +482,7 @@ int main (int argc, char *argv[])
 			{ "flow_output_rate",		required_argument,	NULL,	'o' },
 			{ "mavlink_udp_port",		required_argument,	NULL,	'p' },
 			{ "focal_length",			required_argument,	NULL,	'f' },
+			{ "bmi160_calibrate",		no_argument,		NULL,	'b' },
 			{ }
 	};
 	const char *camera_device = DEFAULT_DEVICE_FILE;
@@ -489,8 +495,9 @@ int main (int argc, char *argv[])
 	int flow_output_rate = DEFAULT_FLOW_OUTPUT_RATE;
 	float focal_length_x = DEFAULT_FOCAL_LENGTH_X;
 	float focal_length_y = DEFAULT_FOCAL_LENGTH_Y;
+	bool bmi160_calibrate = false;
 
-	while ((c = getopt_long(argc, argv, "?c:i:r:x:o:p:f:", options, NULL)) >= 0) {
+	while ((c = getopt_long(argc, argv, "?c:i:r:x:o:p:f:b", options, NULL)) >= 0) {
 		switch (c) {
 		case '?':
 			help();
@@ -525,10 +532,12 @@ int main (int argc, char *argv[])
 				return -EINVAL;
 			}
 			break;
-		case 'f': {
+		case 'f':
 			x_y_float_split(optarg, &focal_length_x, &focal_length_y);
 			break;
-		}
+		case 'b':
+			bmi160_calibrate = true;
+			break;
 		default:
 			help();
 			return -EINVAL;
@@ -538,9 +547,9 @@ int main (int argc, char *argv[])
 	printf("Parameters:\n\tcamera_device=%s\n\tcamera_id=%u\n\tcamera_width=%u\n", camera_device, camera_id, camera_width);
 	printf("\tcamera_height=%u\n\tcrop_width=%u\n\tcrop_height=%u\n", camera_height, crop_width, crop_height);
 	printf("\tflow_output_rate=%i\n\tmavlink_udp_port=%u\n", flow_output_rate, mavlink_udp_port);
-	printf("\tfocal_length_x=%f\n\tfocal_length_y=%f\n", focal_length_x, focal_length_y);
+	printf("\tfocal_length_x=%f\n\tfocal_length_y=%f\n\tbmi160_calibrate=%u\n", focal_length_x, focal_length_y, bmi160_calibrate);
 
 	return mainloop.run(camera_device, camera_id, camera_width, camera_height,
 			crop_width, crop_height, mavlink_udp_port, flow_output_rate,
-			focal_length_x, focal_length_y);
+			focal_length_x, focal_length_y, bmi160_calibrate);
 }

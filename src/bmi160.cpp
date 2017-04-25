@@ -114,6 +114,11 @@
 #define BMI160_READ_FLAG 0x80
 #define BMI160_HARDWARE_INIT_MAX_TRIES 5
 
+#define BMI160_PARAMETERS_FILE "bmi160.param"
+#define BMI160_PARAMETERS_FILE_MAGIC_UINT64_T 0xbadc0ffee0000000
+// 5 seconds
+#define BMI160_SAMPLES_TO_CALIBRATE (1600 * 5)
+
 struct __attribute__((__packed__)) RawData
 {
 	struct
@@ -322,10 +327,31 @@ read_fifo_read_data:
 
 		gyro *= _gyro_scale;
 
-		// f = 1/t => 1600Hz = 1/t => t = 0.000625sec
-		gyro *= 0.000625;
-		_gyro_integrated += gyro;
-		clock_gettime(CLOCK_MONOTONIC, &_gyro_last_update);
+		if (_calibration_samples_counter) {
+			if (_calibration_samples_counter == BMI160_SAMPLES_TO_CALIBRATE) {
+				_gyro_offsets = gyro;
+			} else {
+				_gyro_offsets += gyro;
+				_gyro_offsets /= 2.0;
+			}
+			_calibration_samples_counter--;
+
+			// last sample? save offsets
+			if (!_calibration_samples_counter) {
+				_calibration_save();
+			}
+		} else {
+			gyro -= _gyro_offsets;
+
+			/*
+			 * Integrate it.
+			 * f = 1/t => 1600Hz = 1/t => t = 0.000625sec
+			 */
+			gyro *= 0.000625;
+			_gyro_integrated += gyro;
+
+			clock_gettime(CLOCK_MONOTONIC, &_gyro_last_update);
+		}
 	}
 
 	if (excess) {
@@ -337,6 +363,81 @@ read_fifo_end:
 	if (!r) {
 		DEBUG("BMI160: error on reading FIFO\n");
 	}
+}
+
+int BMI160::_calibration_load()
+{
+	int fd = open(BMI160_PARAMETERS_FILE, O_RDONLY);
+	if (fd < 0) {
+		ERROR("BMI160 Unable to open %s", BMI160_PARAMETERS_FILE);
+		return -1;
+	}
+
+	uint64_t magic;
+	int ret = read(fd, &magic, sizeof(magic));
+	if (ret != sizeof(magic)) {
+		ERROR("BMI160 Magic number not found on parameter file");
+		ret = -1;
+		goto end;
+	}
+
+	if (magic != BMI160_PARAMETERS_FILE_MAGIC_UINT64_T) {
+		ERROR("BMI160 Wrong magic number found on parameter file");
+		ret = -1;
+		goto end;
+	}
+
+	double v[3];
+	ret = read(fd, v, sizeof(v));
+	if (ret != sizeof(v)) {
+		ERROR("BMI160 Unable to read offsets from parameter file");
+		ret = -1;
+		goto end;
+	}
+
+	_gyro_offsets.x = v[0];
+	_gyro_offsets.y = v[1];
+	_gyro_offsets.z = v[2];
+	DEBUG("BMI160 Gyroscope offsets loaded(%f %f %f)", v[0], v[1], v[2]);
+	ret = 0;
+
+end:
+	close(fd);
+	return ret;
+}
+
+int BMI160::_calibration_save()
+{
+	int fd = open(BMI160_PARAMETERS_FILE, O_WRONLY | O_CREAT | O_TRUNC);
+	if (fd < 0) {
+		ERROR("BMI160 Unable to open %s", BMI160_PARAMETERS_FILE);
+		return -1;
+	}
+
+	uint64_t magic = BMI160_PARAMETERS_FILE_MAGIC_UINT64_T;
+	int ret = write(fd, &magic, sizeof(magic));
+	if (ret != sizeof(magic)) {
+		ERROR("BMI160 Unable to write magic number on calibration file");
+		ret = -1;
+		goto end;
+	}
+
+	double v[3];
+	v[0] = _gyro_offsets.x;
+	v[1] = _gyro_offsets.y;
+	v[2] = _gyro_offsets.z;
+	ret = write(fd, v, sizeof(v));
+	if (ret != sizeof(v)) {
+		ERROR("BMI160 Unable to write offsets on calibration file");
+		ret = -1;
+		goto end;
+	}
+
+	DEBUG("BMI160 Gyroscope offsets saved");
+	ret = 0;
+end:
+	close(fd);
+	return ret;
 }
 
 int BMI160::start()
@@ -371,6 +472,14 @@ int BMI160::start()
 	_gyro_integrated.x = 0;
 	_gyro_integrated.y = 0;
 	_gyro_integrated.z = 0;
+
+	if (!_calibration_samples_counter) {
+		if (_calibration_load()) {
+			_gyro_offsets.x = 0;
+			_gyro_offsets.y = 0;
+			_gyro_offsets.z = 0;
+		}
+	}
 
 	/*
 	 * Set a 1kHz timeout
@@ -427,4 +536,9 @@ void BMI160::handle_read()
 bool BMI160::handle_canwrite()
 {
 	return false;
+}
+
+void BMI160::calibrate()
+{
+	_calibration_samples_counter = BMI160_SAMPLES_TO_CALIBRATE;
 }
