@@ -18,7 +18,7 @@ add_custom_target(mavlink-c ALL DEPENDS mavlink-c-stamp)
 
 add_subdirectory(modules/OpticalFlow)
 
-add_executable(aero-optical-flow src/mainloop.cpp src/camera.cpp src/mavlink_udp.cpp src/spi.cpp src/bmi160.cpp mavlink-c-stamp)
+add_executable(aero-optical-flow src/mainloop.cpp src/camera.cpp src/mavlink_udp.cpp src/spi.cpp src/bmi160.cpp src/main.cpp mavlink-c-stamp)
 set_property(TARGET aero-optical-flow PROPERTY CXX_STANDARD 11)
 target_include_directories(aero-optical-flow PUBLIC ${CMAKE_BINARY_DIR}/include/mavlink/${MAVLINK_DIALECT})
 target_link_libraries(aero-optical-flow ${OpenCV_LIBS})
