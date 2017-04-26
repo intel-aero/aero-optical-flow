@@ -50,7 +50,7 @@ public:
 	/* Should be called before start() */
 	void calibrate();
 
-	void gyro_integrated_get(Point3_<double> *gyro, struct timespec *t);
+	void get_gyro_sample(Point3_<double> *gyro, struct timespec *t);
 
 	void handle_read() override;
 	bool handle_canwrite() override;
@@ -61,7 +61,7 @@ private:
 	double _accel_scale;
 	double _gyro_scale;
 
-	Point3_<double> _gyro_integrated;
+	Point3_<double> _gyro;
 	struct timespec _gyro_last_update;
 
 	const char *_parameters_folder;
