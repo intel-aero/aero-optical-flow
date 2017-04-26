@@ -317,22 +317,21 @@ read_fifo_read_data:
 
 	num_samples = num_bytes / sizeof(struct RawData);
 	for (uint8_t i = 0; i < num_samples; i++) {
-		Point3_<double> gyro;
-		gyro.x = (double)(int16_t)raw_data[i].gyro.x;
-		gyro.y = (double)(int16_t)raw_data[i].gyro.y;
-		gyro.z = (double)(int16_t)raw_data[i].gyro.z;
+		_gyro.x = (double)(int16_t)raw_data[i].gyro.x;
+		_gyro.y = (double)(int16_t)raw_data[i].gyro.y;
+		_gyro.z = (double)(int16_t)raw_data[i].gyro.z;
 
 		/* Apply roll 180 rotation, it specific to Aero board */
-		gyro.y = gyro.y * -1.0;
-		gyro.z = gyro.z * -1.0;
+		_gyro.y = _gyro.y * -1.0;
+		_gyro.z = _gyro.z * -1.0;
 
-		gyro *= _gyro_scale;
+		_gyro *= _gyro_scale;
 
 		if (_calibration_samples_counter) {
 			if (_calibration_samples_counter == BMI160_SAMPLES_TO_CALIBRATE) {
-				_gyro_offsets = gyro;
+				_gyro_offsets = _gyro;
 			} else {
-				_gyro_offsets += gyro;
+				_gyro_offsets += _gyro;
 				_gyro_offsets /= 2.0;
 			}
 			_calibration_samples_counter--;
@@ -342,14 +341,7 @@ read_fifo_read_data:
 				_calibration_save();
 			}
 		} else {
-			gyro -= _gyro_offsets;
-
-			/*
-			 * Integrate it.
-			 * f = 1/t => 1600Hz = 1/t => t = 0.000625sec
-			 */
-			gyro *= 0.000625;
-			_gyro_integrated += gyro;
+			_gyro -= _gyro_offsets;
 
 			clock_gettime(CLOCK_MONOTONIC, &_gyro_last_update);
 		}
@@ -476,10 +468,6 @@ int BMI160::start()
 		return -1;
 	}
 
-	_gyro_integrated.x = 0;
-	_gyro_integrated.y = 0;
-	_gyro_integrated.z = 0;
-
 	if (!_calibration_samples_counter) {
 		if (_calibration_load()) {
 			_gyro_offsets.x = 0;
@@ -523,9 +511,9 @@ bool BMI160::read_register(uint8_t reg, uint8_t *recv_buffer, uint16_t recv_len)
 	return _spi->transfer(&reg, 1, recv_buffer, recv_len) == (recv_len + 1);
 }
 
-void BMI160::gyro_integrated_get(Point3_<double> *gyro, struct timespec *t)
+void BMI160::get_gyro_sample(Point3_<double> *gyro, struct timespec *t)
 {
-	*gyro = _gyro_integrated;
+	*gyro = _gyro;
 	*t = _gyro_last_update;
 }
 

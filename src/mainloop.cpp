@@ -108,8 +108,6 @@ private:
 	Mavlink_UDP *_mavlink;
 	BMI160 *_bmi;
 
-	struct timespec _gyro_last_timespec;
-
 	void signal_handlers_setup();
 	void loop();
 };
@@ -217,14 +215,27 @@ void Mainloop::camera_callback(const void *img, size_t len, const struct timeval
 
 	Point3_<double> gyro_data;
 	struct timespec gyro_timespec;
-	_bmi->gyro_integrated_get(&gyro_data, &gyro_timespec);
+	static struct timespec _gyro_last_timespec = gyro_timespec;
+	static Point3_<double> gyro_integrated_data(0.0, 0.0, 0.0);
+
+	_bmi->get_gyro_sample(&gyro_data, &gyro_timespec);
+
+	//calculate deltatime between gyro samples
+	double deltatime = gyro_timespec.tv_sec - _gyro_last_timespec.tv_sec +
+		(double)(gyro_timespec.tv_nsec - _gyro_last_timespec.tv_nsec)/NSEC_PER_SEC;
 
 	// check liveness of BMI160
-	if (_gyro_last_timespec.tv_sec == gyro_timespec.tv_sec
-			&& _gyro_last_timespec.tv_nsec == gyro_timespec.tv_nsec) {
-		DEBUG("No new gyroscope data available, sensor is calibrating?");
-		return;
-	}
+	if ((_gyro_last_timespec.tv_sec == gyro_timespec.tv_sec
+		&& _gyro_last_timespec.tv_nsec == gyro_timespec.tv_nsec)
+		|| std::abs(deltatime) > 0.5) { //first few tv_secs are huge...
+			DEBUG("No new gyroscope data available, sensor is calibrating?");
+			_gyro_last_timespec = gyro_timespec;
+			return;
+		}
+
+	//integrate gyro for flow message
+	gyro_integrated_data += gyro_data * deltatime;
+
 	_gyro_last_timespec = gyro_timespec;
 
 #if DEBUG_LEVEL
@@ -239,11 +250,11 @@ void Mainloop::camera_callback(const void *img, size_t len, const struct timeval
 	mavlink_optical_flow_rad_t msg;
 	msg.time_usec = timestamp->tv_usec + timestamp->tv_sec * USEC_PER_SEC;
 	msg.integration_time_us = dt_us;
-	msg.integrated_x = flow_x_ang;
-	msg.integrated_y = flow_y_ang;
-	msg.integrated_xgyro = gyro_data.x;
-	msg.integrated_ygyro = gyro_data.y;
-	msg.integrated_zgyro = gyro_data.z;
+	msg.integrated_x = flow_y_ang; //switch to match correct directions
+	msg.integrated_y = -flow_x_ang; //switch to match correct directions
+	msg.integrated_xgyro = gyro_integrated_data.x;
+	msg.integrated_ygyro = gyro_integrated_data.y;
+	msg.integrated_zgyro = gyro_integrated_data.z;
 	msg.time_delta_distance_us = 0;
 	msg.distance = -1.0;
 	msg.temperature = 0;
@@ -251,6 +262,9 @@ void Mainloop::camera_callback(const void *img, size_t len, const struct timeval
 	msg.quality = flow_quality;
 
 	_mavlink->optical_flow_rad_msg_write(&msg);
+
+	//reset gyro_integrated_data
+	gyro_integrated_data = {0.0, 0.0, 0.0};
 }
 
 int Mainloop::run(const char *camera_device, int camera_id,
