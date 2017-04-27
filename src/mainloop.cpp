@@ -244,7 +244,7 @@ void Mainloop::camera_callback(const void *img, UNUSED size_t len, const struct 
 	_gyro_last_timespec = gyro_timespec;
 
 #if DEBUG_LEVEL
-	DEBUG("Optical flow quality=%i x=%f y=%f timestamp sec=%lu usec=%lu fps=%f", flow_quality, flow_x_ang, flow_y_ang,
+	DEBUG("Optical flow quality=%i x=%f y=%f timestamp sec=%lu usec=%lu fps=%f", flow_quality, flow_y_ang, -flow_x_ang,
 		img_time_us / USEC_PER_SEC, img_time_us % USEC_PER_SEC, fps);
 	DEBUG("Gyro data(%f %f %f)", gyro_data.x, gyro_data.y, gyro_data.z);
 #endif
