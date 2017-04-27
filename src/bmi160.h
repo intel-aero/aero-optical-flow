@@ -51,6 +51,7 @@ public:
 	void calibrate();
 
 	void gyro_integrated_get(Point3_<double> *gyro, struct timespec *t);
+	void gyro_integrated_reset();
 
 	void handle_read() override;
 	bool handle_canwrite() override;

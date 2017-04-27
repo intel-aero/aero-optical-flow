@@ -529,6 +529,13 @@ void BMI160::gyro_integrated_get(Point3_<double> *gyro, struct timespec *t)
 	*t = _gyro_last_update;
 }
 
+void BMI160::gyro_integrated_reset()
+{
+	_gyro_integrated.x = 0.0;
+	_gyro_integrated.y = 0.0;
+	_gyro_integrated.z = 0.0;
+}
+
 void BMI160::handle_read()
 {
 	uint64_t val = 0;

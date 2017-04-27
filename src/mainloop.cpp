@@ -242,6 +242,7 @@ void Mainloop::camera_callback(const void *img, UNUSED size_t len, const struct 
 		return;
 	}
 	_gyro_last_timespec = gyro_timespec;
+	_bmi->gyro_integrated_reset();
 
 #if DEBUG_LEVEL
 	DEBUG("Optical flow quality=%i x=%f y=%f timestamp sec=%lu usec=%lu fps=%f", flow_quality, flow_y_ang, -flow_x_ang,
