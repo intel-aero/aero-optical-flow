@@ -43,14 +43,17 @@
 
 class Mainloop {
 public:
-	int run(const char *camera_device, int camera_id, uint32_t camera_width,
+	int init(const char *camera_device, int camera_id, uint32_t camera_width,
 			uint32_t camera_height, uint32_t crop_width, uint32_t crop_height,
 			unsigned long mavlink_udp_port, int flow_output_rate,
 			float focal_length_x, float focal_length_y, bool calibrate_bmi,
 			const char *parameters_folder);
+	int run();
+	void shutdown();
 
 	void camera_callback(const void *img, size_t len, const struct timeval *timestamp);
 	void highres_imu_msg_callback(const mavlink_highres_imu_t *msg);
+	void *camera_thread();
 
 private:
 
@@ -58,16 +61,18 @@ private:
 	const char *_window_name = "Aero down face camera test";
 #endif
 
-	uint32_t _camera_initial_timestamp = 0;
-	uint32_t _camera_prev_timestamp = 0;
+	uint64_t _camera_initial_timestamp = 0;
+	uint64_t _camera_prev_timestamp = 0;
 
 	Camera *_camera;
 	OpticalFlowOpenCV *_optical_flow;
 	Mavlink_UDP *_mavlink;
 	BMI160 *_bmi;
 
-	struct timespec _gyro_last_timespec;
+	pthread_mutex_t _mainloop_lock;
 
-	void signal_handlers_setup();
-	void loop();
+	struct timespec _gyro_last_timespec = {};
+
+	void _signal_handlers_setup();
+	void _loop();
 };

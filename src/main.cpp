@@ -283,7 +283,16 @@ int main (int argc, char *argv[])
 	printf("\tfocal_length_x=%f\n\tfocal_length_y=%f\n\tbmi160_calibrate=%u\n", focal_length_x, focal_length_y, bmi160_calibrate);
 	printf("\tparameter_folder=%s\n", parameter_folder);
 
-	return mainloop.run(camera_device, camera_id, camera_width, camera_height,
-			crop_width, crop_height, mavlink_udp_port, flow_output_rate,
-			focal_length_x, focal_length_y, bmi160_calibrate, parameter_folder);
+	int ret = mainloop.init(camera_device, camera_id, camera_width,
+			camera_height,crop_width, crop_height, mavlink_udp_port,
+			flow_output_rate, focal_length_x, focal_length_y, bmi160_calibrate,
+			parameter_folder);
+	if (ret) {
+		return -1;
+	}
+
+	ret = mainloop.run();
+	mainloop.shutdown();
+
+	return ret;
 }

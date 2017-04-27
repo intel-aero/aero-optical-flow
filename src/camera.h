@@ -42,13 +42,17 @@
 
 class Camera : public Pollable {
 public:
-	uint32_t width, height;
+	uint32_t width, height, pixel_format;
+	int device_id;
 
 	Camera(const char *device);
 	virtual ~Camera();
 
 	int init(int device_id, uint32_t width, uint32_t height, uint32_t pixel_format);
-	int shutdown();
+	int start();
+	void stop();
+	void shutdown() { return _shutdown(false); };
+	int restart();
 
 	void callback_set(void (*callback)(const void *img, size_t len, const struct timeval *timestamp, void *data), const void *data);
 
@@ -65,4 +69,9 @@ private:
 
 	int _backend_user_ptr_streaming_init(uint32_t sizeimage);
 	void _backend_user_ptr_streaming_read();
+	void _backend_user_ptr_streaming_shutdown();
+
+	int _fd_open();
+	void _fd_close();
+	void _shutdown(bool soft_reset);
 };
