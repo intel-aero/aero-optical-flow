@@ -48,6 +48,8 @@ typedef uint64_t nsec_t;
 #define GRAVITY_MSS     9.80665f
 #define M_PI_F 3.14159265358979323846f
 
+#define UNUSED __attribute__((__unused__))
+
 inline float radians(float degrees)
 {
 	return (degrees / 180.0f) * M_PI_F;

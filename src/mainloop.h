@@ -38,8 +38,8 @@
 
 #include "bmi160.h"
 #include "camera.h"
+#include "config.h"
 #include "mavlink_udp.h"
-
 
 class Mainloop {
 public:

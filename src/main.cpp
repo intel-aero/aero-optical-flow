@@ -152,14 +152,14 @@ static void help()
 
 static int x_y_split(char *arg, unsigned long *x, unsigned long *y)
 {
-	char *divider = strchrnul(optarg, 'x');
+	char *divider = strchrnul(arg, 'x');
 	const char *x_str, *y_str;
 
 	if (!divider) {
 		return -1;
 	}
 
-	x_str = optarg;
+	x_str = arg;
 	y_str = divider + 1;
 	*divider = '\0';
 
@@ -175,14 +175,14 @@ static int x_y_split(char *arg, unsigned long *x, unsigned long *y)
 
 static int x_y_float_split(char *arg, float *x, float *y)
 {
-	char *divider = strchrnul(optarg, 'x');
+	char *divider = strchrnul(arg, 'x');
 	const char *x_str, *y_str;
 
 	if (!divider) {
 		return -1;
 	}
 
-	x_str = optarg;
+	x_str = arg;
 	y_str = divider + 1;
 	*divider = '\0';
 
@@ -277,9 +277,9 @@ int main (int argc, char *argv[])
 		}
 	}
 
-	printf("Parameters:\n\tcamera_device=%s\n\tcamera_id=%u\n\tcamera_width=%u\n", camera_device, camera_id, camera_width);
-	printf("\tcamera_height=%u\n\tcrop_width=%u\n\tcrop_height=%u\n", camera_height, crop_width, crop_height);
-	printf("\tflow_output_rate=%i\n\tmavlink_udp_port=%u\n", flow_output_rate, mavlink_udp_port);
+	printf("Parameters:\n\tcamera_device=%s\n\tcamera_id=%lu\n\tcamera_width=%lu\n", camera_device, camera_id, camera_width);
+	printf("\tcamera_height=%lu\n\tcrop_width=%lu\n\tcrop_height=%lu\n", camera_height, crop_width, crop_height);
+	printf("\tflow_output_rate=%i\n\tmavlink_udp_port=%lu\n", flow_output_rate, mavlink_udp_port);
 	printf("\tfocal_length_x=%f\n\tfocal_length_y=%f\n\tbmi160_calibrate=%u\n", focal_length_x, focal_length_y, bmi160_calibrate);
 	printf("\tparameter_folder=%s\n", parameter_folder);
 

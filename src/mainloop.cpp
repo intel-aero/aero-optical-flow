@@ -40,7 +40,6 @@
 #include <linux/videodev2.h>
 #include <opencv2/opencv.hpp>
 
-#include "config.h"
 #include "log.h"
 #include "util.h"
 
@@ -50,7 +49,7 @@ using namespace cv;
 
 static bool _should_run;
 
-static void exit_signal_handler(int signum)
+static void exit_signal_handler(UNUSED int signum)
 {
     _should_run = false;
 }
@@ -89,7 +88,7 @@ void Mainloop::loop()
 			continue;
 		}
 
-		for (int i = 0; ret && i < (sizeof(desc) / sizeof(struct pollfd)); i++, ret--) {
+		for (unsigned i = 0; ret && i < (sizeof(desc) / sizeof(struct pollfd)); i++, ret--) {
 			for (uint8_t j = 0; j < len; j++) {
 				if (desc[i].fd == pollables[j]->_fd) {
 					if (desc[i].revents & (POLLIN | POLLPRI)) {
@@ -130,11 +129,15 @@ void Mainloop::camera_callback(const void *img, size_t len, const struct timeval
 #endif
 
 	uint32_t img_time_us = timestamp->tv_usec + timestamp->tv_sec * USEC_PER_SEC;
+#if DEBUG_LEVEL
 	float fps = 0;
+#endif
 
 	if (_camera_initial_timestamp) {
 		img_time_us -= _camera_initial_timestamp;
+#if DEBUG_LEVEL
 		fps = 1.0f / ((float)(img_time_us - _camera_prev_timestamp) / USEC_PER_SEC);
+#endif
 	} else {
 		_camera_initial_timestamp = img_time_us;
 		img_time_us = 0;

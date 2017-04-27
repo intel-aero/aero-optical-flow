@@ -279,7 +279,7 @@ bool BMI160::_configure_fifo()
 void BMI160::_read_fifo()
 {
 	struct RawData raw_data[BMI160_MAX_FIFO_SAMPLES];
-	uint16_t num_bytes;
+	uint16_t num_bytes = 0;
 	uint16_t excess;
 	uint8_t num_samples = 0;
 	bool r = true;
