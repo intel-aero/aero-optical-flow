@@ -220,8 +220,14 @@ void Mainloop::camera_callback(const void *img, UNUSED size_t len, const struct 
 		ERROR("img_time_us > UINT32_MAX");
 	}
 
-	int flow_quality = _optical_flow->calcFlow(cropped_image.data, (uint32_t)img_time_us, dt_us, flow_x_ang, flow_y_ang);
+	cv::Mat cropped;
+	// Copy the data into new matrix -> cropped_image.data can not be used in calcFlow()...
+	cropped_image.copyTo(cropped);
+	cropped_image.deallocate();
 
+	int flow_quality = _optical_flow->calcFlow(cropped.data, (uint32_t)img_time_us, dt_us, flow_x_ang, flow_y_ang);
+
+	cropped.deallocate();
 	_camera_prev_timestamp = img_time_us;
 
 	// check if flow is ready/integrated -> flow output rate
