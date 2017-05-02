@@ -61,5 +61,5 @@ private:
 	const void *_highres_imu_msg_callback_data;
 
 	const uint8_t _system_id = 100;
-	const uint8_t _component_id = MAV_COMP_ID_ALL;
+	const uint8_t _component_id = 1;
 };
