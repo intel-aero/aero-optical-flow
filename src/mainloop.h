@@ -52,7 +52,7 @@ public:
 	void shutdown();
 
 	void camera_callback(const void *img, size_t len, const struct timeval *timestamp);
-	void highres_imu_msg_callback(const mavlink_highres_imu_t *msg);
+	void set_mavlink_time(const mavlink_highres_imu_t *msg);
 	void *camera_thread();
 
 private:
@@ -63,6 +63,8 @@ private:
 
 	uint64_t _camera_initial_timestamp = 0;
 	uint64_t _camera_prev_timestamp = 0;
+	uint64_t _mavlink_time_usec = 0;
+	uint64_t _offset_time_usec = 0;
 
 	Camera *_camera;
 	OpticalFlowOpenCV *_optical_flow;
