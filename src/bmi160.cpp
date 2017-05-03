@@ -333,12 +333,12 @@ read_fifo_read_data:
 				_gyro_offsets = gyro;
 			} else {
 				_gyro_offsets += gyro;
-				_gyro_offsets /= 2.0;
 			}
 			_calibration_samples_counter--;
 
 			// last sample? save offsets
 			if (!_calibration_samples_counter) {
+				_gyro_offsets /= BMI160_SAMPLES_TO_CALIBRATE;
 				_calibration_save();
 			}
 		} else {
