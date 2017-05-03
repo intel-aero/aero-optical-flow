@@ -256,13 +256,14 @@ void Mainloop::camera_callback(const void *img, UNUSED size_t len, const struct 
 	DEBUG("Gyro data(%f %f %f)", gyro_data.x, gyro_data.y, gyro_data.z);
 #endif
 
-	if (!_offset_time_usec && _mavlink_time_usec) {
-		_offset_time_usec = _mavlink_time_usec - (timestamp->tv_usec + timestamp->tv_sec * USEC_PER_SEC);
-		DEBUG("mavlink time offset set to %ld", _offset_time_usec);
+	if (!_offset_timestamp_usec) {
+		DEBUG("Waiting for timestamp from vehicle");
+		pthread_mutex_unlock(&_mainloop_lock);
+		return;
 	}
 
 	mavlink_optical_flow_rad_t msg;
-	msg.time_usec = _offset_time_usec + timestamp->tv_usec + timestamp->tv_sec * USEC_PER_SEC;
+	msg.time_usec = _offset_timestamp_usec + img_time_us;
 	msg.integration_time_us = dt_us;
 	msg.integrated_x = flow_y_ang; //switch to match correct directions
 	msg.integrated_y = -flow_x_ang; //switch to match correct directions
@@ -282,13 +283,13 @@ void Mainloop::camera_callback(const void *img, UNUSED size_t len, const struct 
 static void _highres_imu_msg_callback(const mavlink_highres_imu_t *msg, void *data)
 {
 	Mainloop *mainloop = (Mainloop *)data;
-	mainloop->set_mavlink_time(msg);
+	mainloop->timestamp_vehicle_set(msg->time_usec);
 }
 
-void Mainloop::set_mavlink_time(const mavlink_highres_imu_t *msg)
+void Mainloop::timestamp_vehicle_set(uint64_t time_usec)
 {
-	if (!_offset_time_usec)
-		_mavlink_time_usec = msg->time_usec;
+	if (!_offset_timestamp_usec)
+		_offset_timestamp_usec = time_usec;
 }
 
 int Mainloop::init(const char *camera_device, int camera_id,
@@ -328,7 +329,6 @@ int Mainloop::init(const char *camera_device, int camera_id,
 		ERROR("Unable to initialize Mavlink_UDP");
 		goto mavlink_init_error;
 	}
-	_mavlink->highres_imu_msg_subscribe(_highres_imu_msg_callback, this);
 
 	if (_bmi->init()) {
 		ERROR("BMI160 init error");
@@ -372,6 +372,7 @@ void Mainloop::shutdown()
 int Mainloop::run()
 {
 	_camera->callback_set(_camera_callback, this);
+	_mavlink->highres_imu_msg_subscribe(_highres_imu_msg_callback, this);
 
 	if (_camera->start()) {
 		ERROR("Unable to start camera streaming");
