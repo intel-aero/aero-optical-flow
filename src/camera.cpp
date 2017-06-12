@@ -114,7 +114,7 @@ int Camera::_backend_user_ptr_streaming_init(uint32_t sizeimage)
 			}
 		}
 #if DEBUG_LEVEL
-		DEBUG("pagesize=%i buffer_len=%u", pagesize, _buffer_len);
+		DEBUG("pagesize=%i buffer_len=%li", pagesize, _buffer_len);
 #endif
 	}
 
