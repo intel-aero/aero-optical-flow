@@ -38,8 +38,9 @@
 
 /*
  * OV7251 only supports this resolutions each with a different FPS according
- * with datasheet but we are only being able to get 30fps in any of those
- * resolution, this can be a problem with atomisp.
+ * with datasheet but we are only being able to get 75fps in any of those
+ * resolution, this is a problem in the ov7251 driver and the lack of
+ * the documentation.
  */
 static struct {
 	uint32_t width;
