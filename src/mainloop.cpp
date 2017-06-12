@@ -49,6 +49,14 @@
 
 #define POLL_ERROR_EVENTS (POLLERR | POLLHUP | POLLNVAL)
 
+#define EXPOSURE_MASK_SIZE 128
+#define EXPOSURE_MSV_TARGET 5.0f
+#define EXPOSURE_P_GAIN 30.0f
+#define EXPOSURE_I_GAIN 0.1f
+#define EXPOSURE_D_GAIN 0.1f
+#define EXPOSURE_CHANGE_THRESHOLD 10.0
+#define EXPOSURE_ABOSULUTE_MAX_VALUE 1727
+
 using namespace cv;
 
 static volatile bool _should_run;
@@ -180,6 +188,63 @@ static void _camera_callback(const void *img, size_t len, const struct timeval *
        mainloop->camera_callback(img, len, timestamp);
 }
 
+void Mainloop::_exposure_update(Mat frame, uint64_t timestamp_us)
+{
+	if (timestamp_us < _next_exposure_update_timestap) {
+		return;
+	}
+
+	cv::Mat mask(frame.rows, frame.cols, CV_8U,cv::Scalar(0));
+	mask(cv::Rect(frame.cols / 2 - EXPOSURE_MASK_SIZE / 2,
+			frame.rows / 2 - EXPOSURE_MASK_SIZE / 2,
+			EXPOSURE_MASK_SIZE, EXPOSURE_MASK_SIZE));
+
+	int channels[] = { 0 };
+	cv::Mat hist;
+	int histSize[] = { 10 };
+	float range[] = { 0, 255 };
+	const float* ranges[] = { range };
+
+	calcHist(&frame, 1, channels, mask, hist, 1, histSize, ranges, true, false);
+
+	/* calculate Mean Sample Value (MSV) */
+	float msv = 0.0f;
+	for (int i = 0; i < histSize[0]; i++) {
+		msv += (i + 1) *hist.at<float>(i) / 16384.0f;// 128x128 -> 16384
+	}
+
+	/* PID-controller */
+	float msv_error = EXPOSURE_MSV_TARGET - msv;
+	float msv_error_d = msv_error - _exposure_msv_error_old;
+	_exposure_msv_error_int += msv_error;
+
+	float exposure = _camera->exposure_get();
+	exposure += (EXPOSURE_P_GAIN * msv_error) + (EXPOSURE_I_GAIN * _exposure_msv_error_int) + (EXPOSURE_D_GAIN * msv_error_d);
+
+	if (exposure > EXPOSURE_ABOSULUTE_MAX_VALUE) {
+		exposure = EXPOSURE_ABOSULUTE_MAX_VALUE;
+	} else if (exposure < 1) {
+		exposure = 1;
+	}
+
+	_exposure_msv_error_old = msv_error;
+
+	/* set new exposure value if bigger than threshold */
+	if (fabs(exposure - _camera->exposure_get()) > EXPOSURE_CHANGE_THRESHOLD) {
+#if DEBUG_LEVEL
+		DEBUG("exposure set %u", (uint16_t)exposure);
+#endif
+		_camera->exposure_set(exposure);
+#if DEBUG_LEVEL
+	} else {
+		DEBUG("exposure not set because it did not meet the threshold %u", (uint16_t)exposure);
+#endif
+	}
+
+	/* update exposure at 5Hz */
+	_next_exposure_update_timestap = timestamp_us + (USEC_PER_SEC / 5);
+}
+
 /* Callback called from another thread */
 void Mainloop::camera_callback(const void *img, UNUSED size_t len, const struct timeval *timestamp)
 {
@@ -191,17 +256,20 @@ void Mainloop::camera_callback(const void *img, UNUSED size_t len, const struct 
 	Mat frame_gray = Mat(_camera->height, _camera->width, CV_8UC1);
 	frame_gray.data = (uchar*)img;
 
+#if DEBUG_LEVEL
+	imshow(_window_name, frame_gray);
+#endif
+
+	uint64_t img_time_us = timestamp->tv_usec + timestamp->tv_sec * USEC_PER_SEC;
+
+	_exposure_update(frame_gray, img_time_us);
+
 	// crop the image (optical flow assumes narrow field of view)
 	cv::Rect crop(_camera->width / 2 - _optical_flow->getImageWidth() / 2,
 			_camera->height / 2 - _optical_flow->getImageHeight() / 2,
 			_optical_flow->getImageWidth(), _optical_flow->getImageHeight());
 	cv::Mat cropped_image = frame_gray(crop);
 
-#if DEBUG_LEVEL
-	imshow(_window_name, frame_gray);
-#endif
-
-	uint64_t img_time_us = timestamp->tv_usec + timestamp->tv_sec * USEC_PER_SEC;
 #if DEBUG_LEVEL
 	float fps = 0;
 #endif

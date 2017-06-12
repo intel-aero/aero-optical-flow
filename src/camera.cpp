@@ -260,6 +260,28 @@ int Camera::init(int id, uint32_t w, uint32_t h, uint32_t pf)
 	DEBUG("size image=%u", fmt.fmt.pix.sizeimage);
 #endif
 
+	/* if restarting set the previous exposure value */
+	if (_exposure_value != 0) {
+		exposure_set(_exposure_value);
+	} else {
+		struct v4l2_control ctrl;
+
+		ctrl.id = V4L2_CID_EXPOSURE_ABSOLUTE;
+		ctrl.value = _exposure_value;
+		ret = xioctl(_fd, VIDIOC_G_CTRL, &ctrl);
+		if (ret) {
+			ERROR("Getting exposure: %s", strerror(errno));
+			goto error;
+		}
+
+		/*
+		 * OV7251 exposure value is composed by 19 bits, 15 bit representing the
+		 * integer part and 4 the fraction but there is not information about
+		 * the proportion of this 4bits so not using it.
+		 */
+		_exposure_value = (ctrl.value >> 4);
+	}
+
 	ret = _backend_user_ptr_streaming_init(fmt.fmt.pix.sizeimage);
 	if (ret) {
 		ERROR("Error initializing streaming backend: %s", strerror(errno));
@@ -356,4 +378,26 @@ void Camera::stop()
 	if (xioctl(_fd, VIDIOC_STREAMOFF, &type)) {
 		ERROR("Error stopping streaming: %s", strerror(errno));
 	}
+}
+
+int Camera::exposure_set(uint16_t value)
+{
+	struct v4l2_control ctrl;
+	int ret;
+
+	ctrl.id = V4L2_CID_EXPOSURE_ABSOLUTE;
+	ctrl.value = (value << 4) & 0xFFFF0;
+	ret = xioctl(_fd, VIDIOC_S_CTRL, &ctrl);
+	if (ret) {
+		ERROR("Error setting exposure: %s", strerror(errno));
+		return ret;
+	}
+
+	_exposure_value = value;
+	return 0;
+}
+
+uint16_t Camera::exposure_get()
+{
+	return _exposure_value;
 }

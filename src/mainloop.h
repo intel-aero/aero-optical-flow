@@ -64,6 +64,10 @@ private:
 	uint64_t _camera_initial_timestamp = 0;
 	uint64_t _camera_prev_timestamp = 0;
 	uint64_t _offset_timestamp_usec = 0;
+	uint64_t _next_exposure_update_timestap = 0;
+
+	float _exposure_msv_error_int = 0.0f;
+	float _exposure_msv_error_old = 0.0f;
 
 	Camera *_camera;
 	OpticalFlowOpenCV *_optical_flow;
@@ -76,4 +80,6 @@ private:
 
 	void _signal_handlers_setup();
 	void _loop();
+
+	void _exposure_update(Mat frame, uint64_t timestamp);
 };
