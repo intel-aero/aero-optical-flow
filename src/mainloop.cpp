@@ -292,11 +292,11 @@ void Mainloop::camera_callback(const void *img, UNUSED size_t len, const struct 
 	cv::Mat cropped;
 	// Copy the data into new matrix -> cropped_image.data can not be used in calcFlow()...
 	cropped_image.copyTo(cropped);
-	cropped_image.deallocate();
+	cropped_image.release();
 
 	int flow_quality = _optical_flow->calcFlow(cropped.data, (uint32_t)img_time_us, dt_us, flow_x_ang, flow_y_ang);
 
-	cropped.deallocate();
+	cropped.release();
 	_camera_prev_timestamp = img_time_us;
 
 	// check if flow is ready/integrated -> flow output rate
