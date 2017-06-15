@@ -31,7 +31,7 @@
  *
  ****************************************************************************/
 
-#include "mavlink_udp.h"
+#include "mavlink_tcp.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -42,9 +42,11 @@
 
 #include "log.h"
 
-int Mavlink_UDP::init(const char *ip, unsigned long port)
+int Mavlink_TCP::init(const char *ip, unsigned long port)
 {
-	_fd = socket(AF_INET, SOCK_DGRAM, 0);
+	int ret;
+
+	_fd = socket(AF_INET, SOCK_STREAM, 0);
 	if (_fd == -1) {
 		ERROR("Unable to create socket.");
 		return -1;
@@ -60,12 +62,13 @@ int Mavlink_UDP::init(const char *ip, unsigned long port)
 		goto network_fcntl_error;
 	}
 
-	if (bind(_fd, (struct sockaddr *)&_sockaddr, sizeof(sockaddr_in))) {
-		ERROR("Unable to bind to socket");
+	ret = connect(_fd, (struct sockaddr *)&_sockaddr, sizeof(struct sockaddr_in));
+	if (ret && errno != EINPROGRESS) {
+		ERROR("Unable to connect to socket errno=%i", errno);
 		goto network_bind_error;
 	}
 
-	DEBUG("Mavlink UDP initialized %s:%lu", ip, port);
+	DEBUG("Mavlink TCP initialized %s:%lu", ip, port);
 
 	return 0;
 
@@ -76,7 +79,7 @@ network_fcntl_error:
 	return -1;
 }
 
-Mavlink_UDP::~Mavlink_UDP()
+Mavlink_TCP::~Mavlink_TCP()
 {
 	if (_fd == -1) {
 		return;
@@ -86,7 +89,7 @@ Mavlink_UDP::~Mavlink_UDP()
 	_fd = -1;
 }
 
-void Mavlink_UDP::handle_read()
+void Mavlink_TCP::handle_read()
 {
 	socklen_t addrlen = sizeof(sockaddr);
 	uint8_t buffer[MAVLINK_MAX_PACKET_LEN];
@@ -106,7 +109,7 @@ void Mavlink_UDP::handle_read()
 	}
 }
 
-void Mavlink_UDP::_handle(mavlink_message_t *msg)
+void Mavlink_TCP::_handle(mavlink_message_t *msg)
 {
 	if (msg->msgid == MAVLINK_MSG_ID_HIGHRES_IMU && _highres_imu_msg_callback) {
 		mavlink_highres_imu_t highres_imu;
@@ -117,18 +120,18 @@ void Mavlink_UDP::_handle(mavlink_message_t *msg)
 	}
 }
 
-void Mavlink_UDP::highres_imu_msg_subscribe(void (*callback)(const mavlink_highres_imu_t *msg, void *data), const void *data)
+void Mavlink_TCP::highres_imu_msg_subscribe(void (*callback)(const mavlink_highres_imu_t *msg, void *data), const void *data)
 {
 	_highres_imu_msg_callback = callback;
 	_highres_imu_msg_callback_data = data;
 }
 
-bool Mavlink_UDP::handle_canwrite()
+bool Mavlink_TCP::handle_canwrite()
 {
 	return false;
 }
 
-int Mavlink_UDP::optical_flow_rad_msg_write(mavlink_optical_flow_rad_t *optical_msg)
+int Mavlink_TCP::optical_flow_rad_msg_write(mavlink_optical_flow_rad_t *optical_msg)
 {
 	mavlink_message_t msg;
 	uint8_t buffer[MAVLINK_MAX_PACKET_LEN];

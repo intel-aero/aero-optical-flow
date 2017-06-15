@@ -363,7 +363,7 @@ void Mainloop::timestamp_vehicle_set(uint64_t time_usec)
 
 int Mainloop::init(const char *camera_device, int camera_id,
 		uint32_t camera_width, uint32_t camera_height, uint32_t crop_width,
-		uint32_t crop_height, unsigned long mavlink_udp_port,
+		uint32_t crop_height, unsigned long mavlink_tcp_port,
 		int flow_output_rate, float focal_length_x, float focal_length_y,
 		bool calibrate_bmi, const char *parameters_folder)
 {
@@ -372,9 +372,9 @@ int Mainloop::init(const char *camera_device, int camera_id,
 		ERROR("No memory to allocate Camera");
 		return -1;
 	}
-	_mavlink = new Mavlink_UDP();
+	_mavlink = new Mavlink_TCP();
 	if (!_mavlink) {
-		ERROR("No memory to allocate Mavlink_UDP");
+		ERROR("No memory to allocate Mavlink_TCP");
 		goto mavlink_memory_error;
 	}
 	// TODO: load parameters from yaml file
@@ -394,8 +394,8 @@ int Mainloop::init(const char *camera_device, int camera_id,
 		ERROR("Unable to initialize camera");
 		goto camera_init_error;
 	}
-	if (_mavlink->init("127.0.0.1", mavlink_udp_port)) {
-		ERROR("Unable to initialize Mavlink_UDP");
+	if (_mavlink->init("127.0.0.1", mavlink_tcp_port)) {
+		ERROR("Unable to initialize Mavlink_TCP");
 		goto mavlink_init_error;
 	}
 

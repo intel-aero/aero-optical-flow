@@ -40,9 +40,9 @@
 
 #include "pollable.h"
 
-class Mavlink_UDP : public Pollable {
+class Mavlink_TCP : public Pollable {
 public:
-	virtual ~Mavlink_UDP();
+	virtual ~Mavlink_TCP();
 
 	int init(const char *ip, unsigned long port);
 

@@ -63,7 +63,7 @@ static struct {
 #define DEFAULT_DEVICE_FILE "/dev/video2"
 #define DEFAULT_DEVICE_ID 1
 
-#define MAVLINK_UDP_PORT 14555
+#define MAVLINK_TCP_PORT 5760
 
 #define DEFAULT_PARAMETERS_FOLDER "."
 
@@ -129,7 +129,7 @@ static void help()
 			"                           Default %ux%u\n"
 			"  -o --flow_output_rate    Output rate of the optical flow\n"
 			"                           Default %u\n"
-			"  -p --mavlink_udp_port    MAVLink UDP port where it will listen and send messages\n"
+			"  -p --mavlink_tcp_port    MAVLink TCP port where it will listen and send messages\n"
 			"                           Default %u\n"
 			"  -f --focal_length        Set camera focal lenght in pixels\n"
 			"                           Default %fx%f\n"
@@ -145,7 +145,7 @@ static void help()
 			DEFAULT_IMG_CROP_WIDTH,
 			DEFAULT_IMG_CROP_HEIGHT,
 			DEFAULT_OUTPUT_RATE,
-			MAVLINK_UDP_PORT,
+			MAVLINK_TCP_PORT,
 			DEFAULT_FOCAL_LENGTH_X,
 			DEFAULT_FOCAL_LENGTH_Y,
 			DEFAULT_PARAMETERS_FOLDER);
@@ -209,7 +209,7 @@ int main (int argc, char *argv[])
 			{ "crop_width",				required_argument,	NULL,	'x' },
 			{ "crop_height",			required_argument,	NULL,	'y' },
 			{ "flow_output_rate",		required_argument,	NULL,	'o' },
-			{ "mavlink_udp_port",		required_argument,	NULL,	'p' },
+			{ "mavlink_TCP_port",		required_argument,	NULL,	'p' },
 			{ "focal_length",			required_argument,	NULL,	'f' },
 			{ "bmi160_calibrate",		no_argument,		NULL,	'b' },
 			{ "parameters_folder",		required_argument,  NULL,   'a' },
@@ -221,7 +221,7 @@ int main (int argc, char *argv[])
 	unsigned long camera_height = DEFAULT_IMG_HEIGHT;
 	unsigned long crop_width = DEFAULT_IMG_CROP_WIDTH;
 	unsigned long crop_height = DEFAULT_IMG_CROP_HEIGHT;
-	unsigned long mavlink_udp_port = MAVLINK_UDP_PORT;
+	unsigned long mavlink_tcp_port = MAVLINK_TCP_PORT;
 	int flow_output_rate = DEFAULT_FLOW_OUTPUT_RATE;
 	float focal_length_x = DEFAULT_FOCAL_LENGTH_X;
 	float focal_length_y = DEFAULT_FOCAL_LENGTH_Y;
@@ -257,8 +257,8 @@ int main (int argc, char *argv[])
 			}
 			break;
 		case 'p':
-			if (safe_atoul(optarg, &mavlink_udp_port) < 0) {
-				ERROR("Invalid argument for mavlink_udp_port = %s", optarg);
+			if (safe_atoul(optarg, &mavlink_tcp_port) < 0) {
+				ERROR("Invalid argument for mavlink_tcp_port = %s", optarg);
 				help();
 				return -EINVAL;
 			}
@@ -280,12 +280,12 @@ int main (int argc, char *argv[])
 
 	printf("Parameters:\n\tcamera_device=%s\n\tcamera_id=%lu\n\tcamera_width=%lu\n", camera_device, camera_id, camera_width);
 	printf("\tcamera_height=%lu\n\tcrop_width=%lu\n\tcrop_height=%lu\n", camera_height, crop_width, crop_height);
-	printf("\tflow_output_rate=%i\n\tmavlink_udp_port=%lu\n", flow_output_rate, mavlink_udp_port);
+	printf("\tflow_output_rate=%i\n\tmavlink_tcp_port=%lu\n", flow_output_rate, mavlink_tcp_port);
 	printf("\tfocal_length_x=%f\n\tfocal_length_y=%f\n\tbmi160_calibrate=%u\n", focal_length_x, focal_length_y, bmi160_calibrate);
 	printf("\tparameter_folder=%s\n", parameter_folder);
 
 	int ret = mainloop.init(camera_device, camera_id, camera_width,
-			camera_height,crop_width, crop_height, mavlink_udp_port,
+			camera_height, crop_width, crop_height, mavlink_tcp_port,
 			flow_output_rate, focal_length_x, focal_length_y, bmi160_calibrate,
 			parameter_folder);
 	if (ret) {
