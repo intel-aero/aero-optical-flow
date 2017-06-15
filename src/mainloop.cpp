@@ -51,10 +51,10 @@
 
 #define EXPOSURE_MASK_SIZE 128
 #define EXPOSURE_MSV_TARGET 5.0f
-#define EXPOSURE_P_GAIN 30.0f
-#define EXPOSURE_I_GAIN 0.1f
-#define EXPOSURE_D_GAIN 0.1f
-#define EXPOSURE_CHANGE_THRESHOLD 10.0
+#define EXPOSURE_P_GAIN 100.0f
+#define EXPOSURE_I_GAIN 0.5f
+#define EXPOSURE_D_GAIN 0.5f
+#define EXPOSURE_CHANGE_THRESHOLD 30.0
 #define EXPOSURE_ABOSULUTE_MAX_VALUE 1727
 
 using namespace cv;
@@ -197,7 +197,7 @@ void Mainloop::_exposure_update(Mat frame, uint64_t timestamp_us)
 	cv::Mat mask(frame.rows, frame.cols, CV_8U,cv::Scalar(0));
 	mask(cv::Rect(frame.cols / 2 - EXPOSURE_MASK_SIZE / 2,
 			frame.rows / 2 - EXPOSURE_MASK_SIZE / 2,
-			EXPOSURE_MASK_SIZE, EXPOSURE_MASK_SIZE));
+			EXPOSURE_MASK_SIZE, EXPOSURE_MASK_SIZE)) = 255;
 
 	int channels[] = { 0 };
 	cv::Mat hist;
@@ -262,13 +262,14 @@ void Mainloop::camera_callback(const void *img, UNUSED size_t len, const struct 
 
 	uint64_t img_time_us = timestamp->tv_usec + timestamp->tv_sec * USEC_PER_SEC;
 
-	_exposure_update(frame_gray, img_time_us);
-
 	// crop the image (optical flow assumes narrow field of view)
 	cv::Rect crop(_camera->width / 2 - _optical_flow->getImageWidth() / 2,
 			_camera->height / 2 - _optical_flow->getImageHeight() / 2,
 			_optical_flow->getImageWidth(), _optical_flow->getImageHeight());
 	cv::Mat cropped_image = frame_gray(crop);
+
+	// auto exposure for cropped image
+	_exposure_update(cropped_image, img_time_us);
 
 #if DEBUG_LEVEL
 	float fps = 0;
