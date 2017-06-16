@@ -30,30 +30,38 @@
  * POSSIBILITY OF SUCH DAMAGE.
  *
  ****************************************************************************/
-#include "main.h"
+#pragma once
 
-#include "log.h"
-#include "mainloop.h"
+#include <stdint.h>
+#include <stdbool.h>
 
-int main (int argc, char *argv[])
-{
-	Mainloop mainloop;
+#define DEFAULT_RESOLUTION 1
+#define DEFAULT_IMG_WIDTH 320
+#define DEFAULT_IMG_HEIGHT 240
+#define DEFAULT_IMG_CROP_WIDTH 128
+#define DEFAULT_IMG_CROP_HEIGHT 128
+#define DEFAULT_FLOW_OUTPUT_RATE 15
+#define DEFAULT_FOCAL_LENGTH_X 216.6677
+#define DEFAULT_FOCAL_LENGTH_Y 216.2457
 
-	int ret = parse_args(argc, argv);
-	if (ret) {
-		return ret;
-	}
+#define DEFAULT_DEVICE_FILE "/dev/video2"
+#define DEFAULT_DEVICE_ID 1
 
-	ret = mainloop.init(camera_device, camera_dev_id, camera_width,
-			camera_height, crop_width, crop_height, mavlink_tcp_port,
-			flow_output_rate, focal_length_x, focal_length_y, bmi160_calibrate,
-			parameter_folder);
-	if (ret) {
-		return -1;
-	}
+#define MAVLINK_TCP_PORT 5760
 
-	ret = mainloop.run();
-	mainloop.shutdown();
+#define DEFAULT_PARAMETERS_FOLDER "."
 
-	return ret;
-}
+extern const char *camera_device;
+extern unsigned long camera_dev_id;
+extern unsigned long camera_width;
+extern unsigned long camera_height;
+extern unsigned long crop_width;
+extern unsigned long crop_height;
+extern unsigned long mavlink_tcp_port;
+extern int flow_output_rate;
+extern float focal_length_x;
+extern float focal_length_y;
+extern bool bmi160_calibrate;
+extern const char *parameter_folder;
+
+int parse_args(int argc, char *argv[]);
