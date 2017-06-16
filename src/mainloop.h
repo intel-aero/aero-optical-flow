@@ -43,43 +43,10 @@
 
 class Mainloop {
 public:
-	int init(const char *camera_device, int camera_id, uint32_t camera_width,
-			uint32_t camera_height, uint32_t crop_width, uint32_t crop_height,
-			unsigned long mavlink_tcp_port, int flow_output_rate,
-			float focal_length_x, float focal_length_y, bool calibrate_bmi,
-			const char *parameters_folder);
-	int run();
-	void shutdown();
-
-	void camera_callback(const void *img, size_t len, const struct timeval *timestamp);
-	void timestamp_vehicle_set(uint64_t time_usec);
-	void *camera_thread();
+	int loop(Pollable *pollables[], size_t len, volatile bool *should_run, int timeout);
+	void timeout_callback_set(void (*callback)(void *data), const void *data);
 
 private:
-
-#if DEBUG_LEVEL
-	const char *_window_name = "Aero down face camera test";
-#endif
-
-	uint64_t _camera_initial_timestamp = 0;
-	uint64_t _camera_prev_timestamp = 0;
-	uint64_t _offset_timestamp_usec = 0;
-	uint64_t _next_exposure_update_timestap = 0;
-
-	float _exposure_msv_error_int = 0.0f;
-	float _exposure_msv_error_old = 0.0f;
-
-	Camera *_camera;
-	OpticalFlowOpenCV *_optical_flow;
-	Mavlink_TCP *_mavlink;
-	BMI160 *_bmi;
-
-	pthread_mutex_t _mainloop_lock;
-
-	struct timespec _gyro_last_timespec = {};
-
-	void _signal_handlers_setup();
-	void _loop();
-
-	void _exposure_update(Mat frame, uint64_t timestamp);
+	void (*_timeout_callback)(void *data);
+	const void *_timeout_callback_data;
 };

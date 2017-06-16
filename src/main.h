@@ -51,6 +51,8 @@
 
 #define DEFAULT_PARAMETERS_FOLDER "."
 
+#define CAMERA_MSEC_TIMEOUT 100
+
 extern const char *camera_device;
 extern unsigned long camera_dev_id;
 extern unsigned long camera_width;
