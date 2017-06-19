@@ -82,7 +82,7 @@ int Mainloop::loop(Pollable *pollables[], size_t len, volatile bool *should_run,
 	return 0;
 }
 
-void Mainloop::timeout_callback_set(void (*callback)(void *data), const void *data)
+void Mainloop::loop_timeout_callback_set(void (*callback)(void *data), const void *data)
 {
 	_timeout_callback = callback;
 	_timeout_callback_data = data;

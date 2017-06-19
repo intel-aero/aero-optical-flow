@@ -40,11 +40,13 @@
 
 #include "pollable.h"
 
+#define SYSTEM_ID_MAIN 100
+
 class Mavlink_TCP : public Pollable {
 public:
 	virtual ~Mavlink_TCP();
 
-	int init(const char *ip, unsigned long port);
+	int init(const char *ip, unsigned long port, uint8_t system_id);
 
 	void handle_read() override;
 	bool handle_canwrite() override;
@@ -60,6 +62,6 @@ private:
 	void (*_highres_imu_msg_callback)(const mavlink_highres_imu_t *msg, void *data) = NULL;
 	const void *_highres_imu_msg_callback_data;
 
-	const uint8_t _system_id = 100;
+	uint8_t _system_id;
 	const uint8_t _component_id = 1;
 };

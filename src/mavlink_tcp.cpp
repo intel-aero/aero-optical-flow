@@ -42,7 +42,7 @@
 
 #include "log.h"
 
-int Mavlink_TCP::init(const char *ip, unsigned long port)
+int Mavlink_TCP::init(const char *ip, unsigned long port, uint8_t system_id)
 {
 	int ret;
 
@@ -69,6 +69,8 @@ int Mavlink_TCP::init(const char *ip, unsigned long port)
 	}
 
 	DEBUG("Mavlink TCP initialized %s:%lu", ip, port);
+
+	_system_id = system_id;
 
 	return 0;
 

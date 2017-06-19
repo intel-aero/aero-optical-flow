@@ -38,9 +38,13 @@
 
 #include <linux/videodev2.h>
 #include <opencv2/opencv.hpp>
+#include <flow_opencv.hpp>
 
+#include "config.h"
+#include "camera.h"
 #include "log.h"
 #include "mainloop.h"
+#include "mavlink_tcp.h"
 #include "util.h"
 
 #define DEFAULT_PIXEL_FORMAT V4L2_PIX_FMT_YUV420
@@ -61,7 +65,6 @@ static volatile bool _should_run;
 static Camera *_camera;
 static OpticalFlowOpenCV *_optical_flow;
 static Mavlink_TCP *_mavlink;
-static BMI160 *_bmi;
 
 static uint64_t _camera_initial_timestamp = 0;
 static uint64_t _camera_prev_timestamp = 0;
@@ -70,8 +73,6 @@ static uint64_t _next_exposure_update_timestap = 0;
 
 static float _exposure_msv_error_int = 0.0f;
 static float _exposure_msv_error_old = 0.0f;
-
-static struct timespec _gyro_last_timespec = {};
 
 #if DEBUG_LEVEL
 const char *_window_name = "Aero down face camera test";
@@ -210,23 +211,9 @@ static void camera_callback(const void *img, UNUSED size_t len, const struct tim
 		return;
 	}
 
-	Point3_<double> gyro_data;
-	struct timespec gyro_timespec = {};
-	_bmi->gyro_integrated_get(&gyro_data, &gyro_timespec);
-
-	// check liveness of BMI160
-	if (_gyro_last_timespec.tv_sec == gyro_timespec.tv_sec
-			&& _gyro_last_timespec.tv_nsec == gyro_timespec.tv_nsec) {
-		DEBUG("No new gyroscope data available, sensor is calibrating?");
-		return;
-	}
-	_gyro_last_timespec = gyro_timespec;
-	_bmi->gyro_integrated_reset();
-
 #if DEBUG_LEVEL
 	DEBUG("Optical flow quality=%i x=%f y=%f timestamp sec=%lu usec=%lu fps=%f", flow_quality, flow_y_ang, -flow_x_ang,
 		img_time_us / USEC_PER_SEC, img_time_us % USEC_PER_SEC, fps);
-	DEBUG("Gyro data(%f %f %f)", gyro_data.x, gyro_data.y, gyro_data.z);
 #endif
 
 	if (!_offset_timestamp_usec) {
@@ -239,9 +226,9 @@ static void camera_callback(const void *img, UNUSED size_t len, const struct tim
 	msg.integration_time_us = dt_us;
 	msg.integrated_x = flow_y_ang; //switch to match correct directions
 	msg.integrated_y = -flow_x_ang; //switch to match correct directions
-	msg.integrated_xgyro = gyro_data.x;
-	msg.integrated_ygyro = gyro_data.y;
-	msg.integrated_zgyro = gyro_data.z;
+	msg.integrated_xgyro = 0;
+	msg.integrated_ygyro = 0;
+	msg.integrated_zgyro = 0;
 	msg.time_delta_distance_us = 0;
 	msg.distance = -1.0;
 	msg.temperature = 0;
@@ -276,37 +263,21 @@ static int init()
 		ERROR("No memory to instantiate OpticalFlowOpenCV");
 		goto optical_memory_error;
 	}
-	_bmi = new BMI160("/dev/spidev3.0", parameter_folder);
-	if (!_bmi) {
-		ERROR("No memory to allocate BMI160");
-		goto bmi_memory_error;
-	}
 
 	if (_camera->init(camera_dev_id, camera_width, camera_height, DEFAULT_PIXEL_FORMAT)) {
 		ERROR("Unable to initialize camera");
 		goto camera_init_error;
 	}
-	if (_mavlink->init("127.0.0.1", mavlink_tcp_port)) {
+	if (_mavlink->init("127.0.0.1", mavlink_tcp_port, SYSTEM_ID_MAIN)) {
 		ERROR("Unable to initialize Mavlink_TCP");
 		goto mavlink_init_error;
 	}
 
-	if (_bmi->init()) {
-		ERROR("BMI160 init error");
-		goto bmi_init_error;
-	}
-	if (bmi160_calibrate) {
-		_bmi->calibrate();
-	}
-
 	return 0;
 
-bmi_init_error:
 mavlink_init_error:
 	_camera->shutdown();
 camera_init_error:
-	delete _bmi;
-bmi_memory_error:
 	delete _optical_flow;
 optical_memory_error:
 	delete _mavlink;
@@ -319,12 +290,10 @@ static void shutdown()
 {
 	_camera->shutdown();
 
-	delete _bmi;
 	delete _optical_flow;
 	delete _mavlink;
 	delete _camera;
 
-	_bmi = NULL;
 	_optical_flow = NULL;
 	_mavlink = NULL;
 	_camera = NULL;
@@ -339,10 +308,6 @@ static int start()
 		ERROR("Unable to start camera streaming");
 		goto camera_start_error;
 	}
-	if (_bmi->start()) {
-		ERROR("BMI160 start error");
-		goto bmi_start_error;
-	}
 
 #if DEBUG_LEVEL
 	namedWindow(_window_name, WINDOW_AUTOSIZE);
@@ -351,8 +316,6 @@ static int start()
 
 	return 0;
 
-bmi_start_error:
-	_camera->stop();
 camera_start_error:
 	_camera->callback_set(NULL, NULL);
 	return -1;
@@ -364,7 +327,6 @@ static int stop()
 	destroyAllWindows();
 #endif
 
-	_bmi->stop();
 	_camera->stop();
 
 	_camera->callback_set(NULL, NULL);
@@ -382,7 +344,7 @@ static void timeout_callback(UNUSED void *data)
 int main(int argc, char *argv[])
 {
 	Mainloop mainloop;
-	Pollable *pollables[3];
+	Pollable *pollables[2];
 
 	int ret = parse_args(argc, argv);
 	if (ret) {
@@ -401,11 +363,10 @@ int main(int argc, char *argv[])
 
 	_signal_handlers_setup();
 
-	mainloop.timeout_callback_set(timeout_callback, NULL);
+	mainloop.loop_timeout_callback_set(timeout_callback, NULL);
 
 	pollables[0] = _camera;
 	pollables[1] = _mavlink;
-	pollables[2] = _bmi;
 	mainloop.loop(pollables, sizeof(pollables) / sizeof(Pollable *), &_should_run, CAMERA_MSEC_TIMEOUT);
 
 	stop();

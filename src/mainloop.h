@@ -33,18 +33,14 @@
 
 #pragma once
 
-#include <flow_opencv.hpp>
 #include <mavlink.h>
 
-#include "bmi160.h"
-#include "camera.h"
-#include "config.h"
-#include "mavlink_tcp.h"
+#include "pollable.h"
 
 class Mainloop {
 public:
 	int loop(Pollable *pollables[], size_t len, volatile bool *should_run, int timeout);
-	void timeout_callback_set(void (*callback)(void *data), const void *data);
+	void loop_timeout_callback_set(void (*callback)(void *data), const void *data);
 
 private:
 	void (*_timeout_callback)(void *data);
