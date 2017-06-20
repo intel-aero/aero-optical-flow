@@ -216,10 +216,10 @@ static void camera_callback(const void *img, UNUSED size_t len, const struct tim
 		img_time_us / USEC_PER_SEC, img_time_us % USEC_PER_SEC, fps);
 #endif
 
-	if (!_offset_timestamp_usec) {
+	/*if (!_offset_timestamp_usec) {
 		DEBUG("Waiting for timestamp from vehicle");
 		return;
-	}
+	}*/
 
 	mavlink_optical_flow_rad_t msg;
 	msg.time_usec = _offset_timestamp_usec + img_time_us;
@@ -344,7 +344,7 @@ static void timeout_callback(UNUSED void *data)
 int main(int argc, char *argv[])
 {
 	Mainloop mainloop;
-	Pollable *pollables[2];
+	Pollable *pollables[1];
 
 	int ret = parse_args(argc, argv);
 	if (ret) {
@@ -366,7 +366,7 @@ int main(int argc, char *argv[])
 	mainloop.loop_timeout_callback_set(timeout_callback, NULL);
 
 	pollables[0] = _camera;
-	pollables[1] = _mavlink;
+	//pollables[1] = _mavlink;
 	mainloop.loop(pollables, sizeof(pollables) / sizeof(Pollable *), &_should_run, CAMERA_MSEC_TIMEOUT);
 
 	stop();
