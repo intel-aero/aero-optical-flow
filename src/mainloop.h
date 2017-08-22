@@ -45,9 +45,9 @@ class Mainloop {
 public:
 	int init(const char *camera_device, int camera_id, uint32_t camera_width,
 			uint32_t camera_height, uint32_t crop_width, uint32_t crop_height,
-			unsigned long mavlink_tcp_port, int flow_output_rate,
-			float focal_length_x, float focal_length_y, bool calibrate_bmi,
-			const char *parameters_folder);
+			const char *mavlink_tcp_ip, unsigned long mavlink_tcp_port,
+			int flow_output_rate, float focal_length_x, float focal_length_y,
+			bool calibrate_bmi, const char *parameters_folder);
 	int run();
 	void shutdown();
 
