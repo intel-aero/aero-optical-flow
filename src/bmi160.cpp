@@ -338,7 +338,9 @@ read_fifo_read_data:
 
 			// last sample? save offsets
 			if (!_calibration_samples_counter) {
-				_gyro_offsets /= BMI160_SAMPLES_TO_CALIBRATE;
+				_gyro_offsets.x = _gyro_offsets.x / BMI160_SAMPLES_TO_CALIBRATE;
+				_gyro_offsets.y = _gyro_offsets.y / BMI160_SAMPLES_TO_CALIBRATE;
+				_gyro_offsets.z = _gyro_offsets.z / BMI160_SAMPLES_TO_CALIBRATE;
 				_calibration_save();
 			}
 		} else {
