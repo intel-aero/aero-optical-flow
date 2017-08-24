@@ -254,7 +254,7 @@ bool BMI160::_configure_fifo()
 	/* The unit for the FIFO watermark is 4 bytes. */
 	r = write_register(BMI160_REG_FIFO_CONFIG_0, sizeof(struct RawData) / 4);
 	if (!r) {
-		ERROR("BMI160: Unable to configure FIFO watermark level\n");
+		ERROR("BMI160: Unable to configure FIFO watermark level");
 		return false;
 	}
 	usleep(USEC_PER_MSEC);
@@ -262,14 +262,14 @@ bool BMI160::_configure_fifo()
 	r = write_register(BMI160_REG_FIFO_CONFIG_1,
 			BMI160_FIFO_ACC_EN | BMI160_FIFO_GYR_EN);
 	if (!r) {
-		ERROR("BMI160: Unable to enable FIFO\n");
+		ERROR("BMI160: Unable to enable FIFO");
 		return false;
 	}
 	usleep(USEC_PER_MSEC);
 
 	r = write_register(BMI160_REG_CMD, BMI160_CMD_FIFO_FLUSH);
 	if (!r) {
-		ERROR("BMI160: Unable to flush FIFO\n");
+		ERROR("BMI160: Unable to flush FIFO");
 		return false;
 	}
 
@@ -309,7 +309,7 @@ read_fifo_read_data:
 
 	/* Read again just once */
 	if (excess && num_samples) {
-		DEBUG("BMI160: dropping %u samples from fifo\n",
+		DEBUG("BMI160: dropping %u samples from fifo",
 				(uint8_t )(excess / sizeof(struct RawData)));
 		write_register(BMI160_REG_CMD, BMI160_CMD_FIFO_FLUSH);
 		excess = 0;
@@ -364,7 +364,7 @@ read_fifo_read_data:
 
 read_fifo_end:
 	if (!r) {
-		DEBUG("BMI160: error on reading FIFO\n");
+		DEBUG("BMI160: error on reading FIFO");
 	}
 }
 
