@@ -56,6 +56,7 @@
 #define EXPOSURE_D_GAIN 0.5f
 #define EXPOSURE_CHANGE_THRESHOLD 30.0
 #define EXPOSURE_ABOSULUTE_MAX_VALUE 1727
+#define CAMERA_FPS_MIN 70
 
 using namespace cv;
 
@@ -235,10 +236,6 @@ void Mainloop::_exposure_update(Mat frame, uint64_t timestamp_us)
 		DEBUG("exposure set %u", (uint16_t)exposure);
 #endif
 		_camera->exposure_set(exposure);
-#if DEBUG_LEVEL
-	} else {
-		DEBUG("exposure not set because it did not meet the threshold %u", (uint16_t)exposure);
-#endif
 	}
 
 	/* update exposure at 5Hz */
@@ -271,15 +268,11 @@ void Mainloop::camera_callback(const void *img, UNUSED size_t len, const struct 
 	// auto exposure for cropped image
 	_exposure_update(cropped_image, img_time_us);
 
-#if DEBUG_LEVEL
 	float fps = 0;
-#endif
 
 	if (_camera_initial_timestamp) {
 		img_time_us -= _camera_initial_timestamp;
-#if DEBUG_LEVEL
 		fps = 1.0f / ((float)(img_time_us - _camera_prev_timestamp) / USEC_PER_SEC);
-#endif
 	} else {
 		_camera_initial_timestamp = img_time_us;
 		img_time_us = 0;
@@ -319,6 +312,9 @@ void Mainloop::camera_callback(const void *img, UNUSED size_t len, const struct 
 	_gyro_last_timespec = gyro_timespec;
 	_bmi->gyro_integrated_reset();
 
+	if (fps < CAMERA_FPS_MIN) {
+		ERROR("FPS below minimum, actual=%u minimum=%u", (unsigned)fps, CAMERA_FPS_MIN);
+	}
 #if DEBUG_LEVEL
 	DEBUG("Optical flow quality=%i x=%f y=%f timestamp sec=%lu usec=%lu fps=%f", flow_quality, flow_y_ang, -flow_x_ang,
 		img_time_us / USEC_PER_SEC, img_time_us % USEC_PER_SEC, fps);
