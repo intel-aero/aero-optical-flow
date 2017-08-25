@@ -132,7 +132,7 @@ void *Mainloop::camera_thread()
 
 void Mainloop::_loop()
 {
-	Pollable *pollables[] = { _bmi, _mavlink };
+	Pollable *pollables[] = { _mavlink };
 	uint8_t len = sizeof(pollables) / sizeof(Pollable *);
 	struct pollfd desc[len];
 
@@ -300,17 +300,18 @@ void Mainloop::camera_callback(const void *img, UNUSED size_t len, const struct 
 
 	Point3_<double> gyro_data;
 	struct timespec gyro_timespec = {};
-	_bmi->gyro_integrated_get(&gyro_data, &gyro_timespec);
+	// TODO get data from mavlink
 
-	// check liveness of BMI160
+	// check liveness of gyro data
 	if (_gyro_last_timespec.tv_sec == gyro_timespec.tv_sec
 			&& _gyro_last_timespec.tv_nsec == gyro_timespec.tv_nsec) {
-		DEBUG("No new gyroscope data available, sensor is calibrating?");
+		DEBUG("No new gyroscope data available");
 		pthread_mutex_unlock(&_mainloop_lock);
 		return;
 	}
 	_gyro_last_timespec = gyro_timespec;
-	_bmi->gyro_integrated_reset();
+
+	// TODO reset gyro from mavlink
 
 	if (fps < CAMERA_FPS_MIN) {
 		ERROR("FPS below minimum, actual=%u minimum=%u", (unsigned)fps, CAMERA_FPS_MIN);
@@ -360,8 +361,7 @@ void Mainloop::timestamp_vehicle_set(uint64_t time_usec)
 int Mainloop::init(const char *camera_device, int camera_id,
 		uint32_t camera_width, uint32_t camera_height, uint32_t crop_width,
 		uint32_t crop_height, const char *mavlink_tcp_ip, unsigned long mavlink_tcp_port,
-		int flow_output_rate, float focal_length_x, float focal_length_y,
-		bool calibrate_bmi, const char *parameters_folder)
+		int flow_output_rate, float focal_length_x, float focal_length_y)
 {
 	_camera = new Camera(camera_device);
 	if (!_camera) {
@@ -380,11 +380,6 @@ int Mainloop::init(const char *camera_device, int camera_id,
 		ERROR("No memory to instantiate OpticalFlowOpenCV");
 		goto optical_memory_error;
 	}
-	_bmi = new BMI160("/dev/spidev3.0", parameters_folder);
-	if (!_bmi) {
-		ERROR("No memory to allocate BMI160");
-		goto bmi_memory_error;
-	}
 
 	if (_camera->init(camera_id, camera_width, camera_height, DEFAULT_PIXEL_FORMAT)) {
 		ERROR("Unable to initialize camera");
@@ -395,22 +390,11 @@ int Mainloop::init(const char *camera_device, int camera_id,
 		goto mavlink_init_error;
 	}
 
-	if (_bmi->init()) {
-		ERROR("BMI160 init error");
-		goto bmi_init_error;
-	}
-	if (calibrate_bmi) {
-		_bmi->calibrate();
-	}
-
 	return 0;
 
-bmi_init_error:
 mavlink_init_error:
 	_camera->shutdown();
 camera_init_error:
-	delete _bmi;
-bmi_memory_error:
 	delete _optical_flow;
 optical_memory_error:
 	delete _mavlink;
@@ -423,12 +407,10 @@ void Mainloop::shutdown()
 {
 	_camera->shutdown();
 
-	delete _bmi;
 	delete _optical_flow;
 	delete _mavlink;
 	delete _camera;
 
-	_bmi = NULL;
 	_optical_flow = NULL;
 	_mavlink = NULL;
 	_camera = NULL;
@@ -443,10 +425,6 @@ int Mainloop::run()
 		ERROR("Unable to start camera streaming");
 		goto camera_start_error;
 	}
-	if (_bmi->start()) {
-		ERROR("BMI160 start error");
-		goto bmi_start_error;
-	}
 
 #if DEBUG_LEVEL
 	namedWindow(_window_name, WINDOW_AUTOSIZE);
@@ -459,15 +437,13 @@ int Mainloop::run()
 	destroyAllWindows();
 #endif
 
-	_bmi->stop();
 	_camera->stop();
 
 	_camera->callback_set(NULL, NULL);
 
 	return 0;
 
-bmi_start_error:
-	_camera->stop();
+
 camera_start_error:
 	_camera->callback_set(NULL, NULL);
 	return -1;

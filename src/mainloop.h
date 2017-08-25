@@ -35,19 +35,20 @@
 
 #include <flow_opencv.hpp>
 #include <mavlink.h>
+#include <opencv2/opencv.hpp>
 
-#include "bmi160.h"
 #include "camera.h"
 #include "config.h"
 #include "mavlink_tcp.h"
+
+using namespace cv;
 
 class Mainloop {
 public:
 	int init(const char *camera_device, int camera_id, uint32_t camera_width,
 			uint32_t camera_height, uint32_t crop_width, uint32_t crop_height,
 			const char *mavlink_tcp_ip, unsigned long mavlink_tcp_port,
-			int flow_output_rate, float focal_length_x, float focal_length_y,
-			bool calibrate_bmi, const char *parameters_folder);
+			int flow_output_rate, float focal_length_x, float focal_length_y);
 	int run();
 	void shutdown();
 
@@ -72,7 +73,6 @@ private:
 	Camera *_camera;
 	OpticalFlowOpenCV *_optical_flow;
 	Mavlink_TCP *_mavlink;
-	BMI160 *_bmi;
 
 	pthread_mutex_t _mainloop_lock;
 
