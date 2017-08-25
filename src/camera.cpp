@@ -274,12 +274,7 @@ int Camera::init(int id, uint32_t w, uint32_t h, uint32_t pf)
 			goto error;
 		}
 
-		/*
-		 * OV7251 exposure value is composed by 19 bits, 15 bit representing the
-		 * integer part and 4 the fraction but there is not information about
-		 * the proportion of this 4bits so not using it.
-		 */
-		_exposure_value = (ctrl.value >> 4);
+		_exposure_value = ctrl.value;
 	}
 
 	ret = _backend_user_ptr_streaming_init(fmt.fmt.pix.sizeimage);
@@ -386,7 +381,7 @@ int Camera::exposure_set(uint16_t value)
 	int ret;
 
 	ctrl.id = V4L2_CID_EXPOSURE_ABSOLUTE;
-	ctrl.value = (value << 4) & 0xFFFF0;
+	ctrl.value = value;
 	ret = xioctl(_fd, VIDIOC_S_CTRL, &ctrl);
 	if (ret) {
 		ERROR("Error setting exposure: %s", strerror(errno));
