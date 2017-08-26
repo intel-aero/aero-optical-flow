@@ -53,7 +53,7 @@ public:
 	void shutdown();
 
 	void camera_callback(const void *img, size_t len, const struct timeval *timestamp);
-	void timestamp_vehicle_set(uint64_t time_usec);
+	void highres_imu_msg_callback(const mavlink_highres_imu_t *msg);
 	void *camera_thread();
 
 private:
@@ -70,13 +70,16 @@ private:
 	float _exposure_msv_error_int = 0.0f;
 	float _exposure_msv_error_old = 0.0f;
 
+	Point3_<double> _gyro_integrated = {};
+	uint64_t _gyro_prev_timestamp = 0;
+
 	Camera *_camera;
 	OpticalFlowOpenCV *_optical_flow;
 	Mavlink_TCP *_mavlink;
 
 	pthread_mutex_t _mainloop_lock;
 
-	struct timespec _gyro_last_timespec = {};
+	uint64_t _gyro_last_usec_timestamp = 0;
 
 	void _signal_handlers_setup();
 	void _loop();
