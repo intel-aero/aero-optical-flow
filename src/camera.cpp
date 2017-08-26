@@ -266,8 +266,8 @@ int Camera::init(int id, uint32_t w, uint32_t h, uint32_t pf)
 	} else {
 		struct v4l2_control ctrl;
 
+		// getting value set in hardware
 		ctrl.id = V4L2_CID_EXPOSURE_ABSOLUTE;
-		ctrl.value = _exposure_value;
 		ret = xioctl(_fd, VIDIOC_G_CTRL, &ctrl);
 		if (ret) {
 			ERROR("Getting exposure: %s", strerror(errno));
@@ -275,6 +275,25 @@ int Camera::init(int id, uint32_t w, uint32_t h, uint32_t pf)
 		}
 
 		_exposure_value = ctrl.value;
+		DEBUG("Initial exposure %u", _exposure_value);
+	}
+
+	/* if restarting set the previous gain value */
+	if (_gain_value != 0) {
+		gain_set(_gain_value);
+	} else {
+		struct v4l2_control ctrl;
+
+		// getting value set in hardware
+		ctrl.id = V4L2_CID_GAIN;
+		ret = xioctl(_fd, VIDIOC_G_CTRL, &ctrl);
+		if (ret) {
+			ERROR("Getting gain: %s", strerror(errno));
+			goto error;
+		}
+
+		_gain_value = ctrl.value;
+		DEBUG("Initial gain %u", _gain_value);
 	}
 
 	ret = _backend_user_ptr_streaming_init(fmt.fmt.pix.sizeimage);
@@ -395,4 +414,30 @@ int Camera::exposure_set(uint16_t value)
 uint16_t Camera::exposure_get()
 {
 	return _exposure_value;
+}
+
+int Camera::gain_set(uint8_t value)
+{
+	struct v4l2_control ctrl;
+	int ret;
+
+	if (value > 0x7F) {
+		return -1;
+	}
+
+	ctrl.id = V4L2_CID_GAIN;
+	ctrl.value = value;
+	ret = xioctl(_fd, VIDIOC_S_CTRL, &ctrl);
+	if (ret) {
+		ERROR("Error setting gain: %s", strerror(errno));
+		return ret;
+	}
+
+	_gain_value = value;
+	return 0;
+}
+
+uint8_t Camera::gain_get()
+{
+	return _gain_value;
 }

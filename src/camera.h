@@ -53,8 +53,12 @@ public:
 	void stop();
 	void shutdown() { return _shutdown(false); };
 	int restart();
+
 	int exposure_set(uint16_t value);
 	uint16_t exposure_get();
+
+	int gain_set(uint8_t value);
+	uint8_t gain_get();
 
 	void callback_set(void (*callback)(const void *img, size_t len, const struct timeval *timestamp, void *data), const void *data);
 
@@ -70,6 +74,7 @@ private:
 	const void *_callback_data;
 
 	uint16_t _exposure_value = 0;
+	uint8_t _gain_value = 0;
 
 	int _backend_user_ptr_streaming_init(uint32_t sizeimage);
 	void _backend_user_ptr_streaming_read();
