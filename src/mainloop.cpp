@@ -298,20 +298,16 @@ void Mainloop::camera_callback(const void *img, UNUSED size_t len, const struct 
 		return;
 	}
 
-	Point3_<double> gyro_data;
-	struct timespec gyro_timespec = {};
-	// TODO get data from mavlink
+	Point3_<double> gyro_data = _gyro_integrated;
+	_gyro_integrated.x = _gyro_integrated.y = _gyro_integrated.z = 0;
 
 	// check liveness of gyro data
-	if (_gyro_last_timespec.tv_sec == gyro_timespec.tv_sec
-			&& _gyro_last_timespec.tv_nsec == gyro_timespec.tv_nsec) {
+	if (_gyro_last_usec_timestamp == _gyro_prev_timestamp) {
 		DEBUG("No new gyroscope data available");
 		pthread_mutex_unlock(&_mainloop_lock);
 		return;
 	}
-	_gyro_last_timespec = gyro_timespec;
-
-	// TODO reset gyro from mavlink
+	_gyro_last_usec_timestamp = _gyro_prev_timestamp;
 
 	if (fps < CAMERA_FPS_MIN) {
 		ERROR("FPS below minimum, actual=%u minimum=%u", (unsigned)fps, CAMERA_FPS_MIN);
@@ -349,13 +345,23 @@ void Mainloop::camera_callback(const void *img, UNUSED size_t len, const struct 
 static void _highres_imu_msg_callback(const mavlink_highres_imu_t *msg, void *data)
 {
 	Mainloop *mainloop = (Mainloop *)data;
-	mainloop->timestamp_vehicle_set(msg->time_usec);
+	mainloop->highres_imu_msg_callback(msg);
 }
 
-void Mainloop::timestamp_vehicle_set(uint64_t time_usec)
+void Mainloop::highres_imu_msg_callback(const mavlink_highres_imu_t *msg)
 {
+	// Integrate
+	const double t = (double)(msg->time_usec - _gyro_prev_timestamp) / (double)USEC_PER_SEC;
+
+	if (_gyro_prev_timestamp) {
+		_gyro_integrated.x += (msg->xgyro * t);
+		_gyro_integrated.y += (msg->ygyro * t);
+		_gyro_integrated.z += (msg->zgyro * t);
+	}
+	_gyro_prev_timestamp = msg->time_usec;
+
 	if (!_offset_timestamp_usec)
-		_offset_timestamp_usec = time_usec;
+		_offset_timestamp_usec = msg->time_usec;
 }
 
 int Mainloop::init(const char *camera_device, int camera_id,
