@@ -327,10 +327,10 @@ void Mainloop::camera_callback(const void *img, UNUSED size_t len, const struct 
 	mavlink_optical_flow_rad_t msg;
 	msg.time_usec = _offset_timestamp_usec + img_time_us;
 	msg.integration_time_us = dt_us;
-	msg.integrated_x = flow_y_ang; //switch to match correct directions
-	msg.integrated_y = -flow_x_ang; //switch to match correct directions
-	msg.integrated_xgyro = gyro_data.x;
-	msg.integrated_ygyro = gyro_data.y;
+	msg.integrated_x = flow_x_ang;
+	msg.integrated_y = flow_y_ang;
+	msg.integrated_xgyro = -gyro_data.y; // switch to match pixel directions
+	msg.integrated_ygyro = gyro_data.x; // switch to match pixel directions
 	msg.integrated_zgyro = gyro_data.z;
 	msg.time_delta_distance_us = 0;
 	msg.distance = -1.0;
