@@ -40,6 +40,8 @@
 
 #include "pollable.h"
 
+#define HIGHRES_IMU_INTERVAL_US 4000.0f
+
 class Mavlink_TCP : public Pollable {
 public:
 	virtual ~Mavlink_TCP();
@@ -52,6 +54,7 @@ public:
 	void highres_imu_msg_subscribe(void (*callback)(const mavlink_highres_imu_t *msg, void *data), const void *data);
 
 	int optical_flow_rad_msg_write(mavlink_optical_flow_rad_t *msg);
+	int set_highres_rate(float interval_us);
 private:
 	struct sockaddr_in _sockaddr;
 
@@ -60,6 +63,6 @@ private:
 	void (*_highres_imu_msg_callback)(const mavlink_highres_imu_t *msg, void *data) = NULL;
 	const void *_highres_imu_msg_callback_data;
 
-	const uint8_t _system_id = 100;
-	const uint8_t _component_id = 1;
+	const uint8_t _system_id = 1; // TODO default is 1, but check with heartbeat
+	const uint8_t _component_id = MAV_COMP_ID_CAMERA;
 };
