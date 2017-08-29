@@ -41,6 +41,7 @@
 #include <mavlink.h>
 
 #include "log.h"
+#include "util.h"
 
 int Mavlink_TCP::init(const char *ip, unsigned long port)
 {
@@ -69,6 +70,13 @@ int Mavlink_TCP::init(const char *ip, unsigned long port)
 	}
 
 	DEBUG("Mavlink TCP initialized %s:%lu", ip, port);
+
+	ret = set_highres_rate(HIGHRES_IMU_INTERVAL_US);
+	if (ret == 0) {
+		DEBUG("Mavlink stream HIGHRES_IMU set to %.1f Hz", (USEC_PER_SEC / HIGHRES_IMU_INTERVAL_US));
+	} else {
+		ERROR("Unable to set Mavlink HIGHRES_IMU stream");
+	}
 
 	return 0;
 
@@ -147,6 +155,36 @@ int Mavlink_TCP::optical_flow_rad_msg_write(mavlink_optical_flow_rad_t *optical_
 
 	if (r != len) {
 		ERROR("mavlink_optical_flow_rad_t was send incomplete");
+		return -1;
+	}
+
+	return 0;
+}
+
+int Mavlink_TCP::set_highres_rate(float interval_us)
+{
+	mavlink_command_long_t set_highres_rate_msg;
+	mavlink_message_t msg;
+	uint8_t buffer[MAVLINK_MAX_PACKET_LEN];
+
+	set_highres_rate_msg.target_system = 1; // TODO default is 1, but check with heartbeat
+	set_highres_rate_msg.target_component = MAV_COMP_ID_AUTOPILOT1;
+	set_highres_rate_msg.command = MAV_CMD_SET_MESSAGE_INTERVAL;
+	set_highres_rate_msg.param1 = MAVLINK_MSG_ID_HIGHRES_IMU; // The MAVLink message ID
+	set_highres_rate_msg.param2 = interval_us; // The interval between two messages, in microseconds
+
+	mavlink_msg_command_long_encode(_system_id, _component_id, &msg, &set_highres_rate_msg);
+	uint16_t len = mavlink_msg_to_send_buffer(buffer, &msg);
+
+	ssize_t r = sendto(_fd, buffer, len, 0, (struct sockaddr *)&_sockaddr, sizeof(_sockaddr));
+
+	if (r == -1) {
+		ERROR("Error setting HIGHRES_IMU stream: %s", strerror(errno));
+		return -1;
+	}
+
+	if (r != len) {
+		ERROR("setting HIGHRES_IMU stream was send incomplete");
 		return -1;
 	}
 
