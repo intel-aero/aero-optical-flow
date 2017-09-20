@@ -67,8 +67,8 @@ private:
 	uint64_t _offset_timestamp_usec = 0;
 	uint64_t _next_exposure_update_timestap = 0;
 
-	float _exposure_msv_error_int = 0.0f;
-	float _exposure_msv_error_old = 0.0f;
+	float _msv_error_int = 0.0f;
+	float _msv_error_old = 0.0f;
 
 	Point3_<double> _gyro_integrated = {};
 	uint64_t _gyro_prev_timestamp = 0;
