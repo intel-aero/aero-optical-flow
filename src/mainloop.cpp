@@ -54,8 +54,13 @@
 #define EXPOSURE_P_GAIN 100.0f
 #define EXPOSURE_I_GAIN 0.5f
 #define EXPOSURE_D_GAIN 0.5f
+#define GAIN_P_GAIN 50.0f
+#define GAIN_I_GAIN 0.5f
+#define GAIN_D_GAIN 0.5f
 #define EXPOSURE_CHANGE_THRESHOLD 30.0
 #define EXPOSURE_ABOSULUTE_MAX_VALUE 1727
+#define GAIN_CHANGE_THRESHOLD 15.0
+#define GAIN_ABOSULUTE_MAX_VALUE 127
 #define CAMERA_FPS_MIN 70
 
 using namespace cv;
@@ -216,27 +221,54 @@ void Mainloop::_exposure_update(Mat frame, uint64_t timestamp_us)
 
 	/* PID-controller */
 	float msv_error = EXPOSURE_MSV_TARGET - msv;
-	float msv_error_d = msv_error - _exposure_msv_error_old;
-	_exposure_msv_error_int += msv_error;
+	float msv_error_d = msv_error - _msv_error_old;
+	_msv_error_int += msv_error;
 
 	float exposure = _camera->exposure_get();
-	exposure += (EXPOSURE_P_GAIN * msv_error) + (EXPOSURE_I_GAIN * _exposure_msv_error_int) + (EXPOSURE_D_GAIN * msv_error_d);
+  float gain = _camera->gain_get();
 
-	if (exposure > EXPOSURE_ABOSULUTE_MAX_VALUE) {
-		exposure = EXPOSURE_ABOSULUTE_MAX_VALUE;
-	} else if (exposure < 1) {
-		exposure = 1;
-	}
+  exposure += (EXPOSURE_P_GAIN * msv_error) + (EXPOSURE_I_GAIN * _msv_error_int) + (EXPOSURE_D_GAIN * msv_error_d);
 
-	_exposure_msv_error_old = msv_error;
+	// adjust the gain if exposure is saturated
+	if (gain > 1.0f || (exposure > EXPOSURE_ABOSULUTE_MAX_VALUE-1 && _camera->exposure_get() > EXPOSURE_ABOSULUTE_MAX_VALUE-1)) {
+		//calculate new gain value based on MSV
+		gain += (GAIN_P_GAIN*msv_error) + (GAIN_I_GAIN*_msv_error_int) + (GAIN_D_GAIN*msv_error_d);
 
-	/* set new exposure value if bigger than threshold */
-	if (fabs(exposure - _camera->exposure_get()) > EXPOSURE_CHANGE_THRESHOLD) {
+		if (gain > GAIN_ABOSULUTE_MAX_VALUE) {
+			gain = GAIN_ABOSULUTE_MAX_VALUE;
+		} else if (gain < 1.0f) {
+			gain = 1.0f;
+		}
+
+		/* set new gain value if bigger than threshold */
+		if (fabs(gain - _camera->gain_get()) > GAIN_CHANGE_THRESHOLD || (gain < 2.0f && _camera->gain_get() > 1.0f) ||
+		    (gain > GAIN_ABOSULUTE_MAX_VALUE-1 && _camera->gain_get() < GAIN_ABOSULUTE_MAX_VALUE)) {
 #if DEBUG_LEVEL
-		DEBUG("exposure set %u", (uint16_t)exposure);
+			DEBUG("gain set %u", (uint16_t)gain);
 #endif
-		_camera->exposure_set(exposure);
+			_camera->gain_set(gain);
+		}
+
+	} else { // adjust exposure
+
+		if (exposure > EXPOSURE_ABOSULUTE_MAX_VALUE) {
+			exposure = EXPOSURE_ABOSULUTE_MAX_VALUE;
+		} else if (exposure < 1.0f) {
+			exposure = 1.0f;
+		}
+
+		/* set new exposure value if bigger than threshold */
+		if (fabs(exposure - _camera->exposure_get()) > EXPOSURE_CHANGE_THRESHOLD || (exposure < 2.0f && _camera->exposure_get() > 1.0f) ||
+		    (exposure > EXPOSURE_ABOSULUTE_MAX_VALUE-1 && _camera->exposure_get() < EXPOSURE_ABOSULUTE_MAX_VALUE)) {
+#if DEBUG_LEVEL
+			DEBUG("exposure set %u", (uint16_t)exposure);
+#endif
+			_camera->exposure_set(exposure);
+		}
+
 	}
+
+	_msv_error_old = msv_error;
 
 	/* update exposure at 5Hz */
 	_next_exposure_update_timestap = timestamp_us + (USEC_PER_SEC / 5);
