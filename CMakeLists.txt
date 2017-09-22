@@ -17,3 +17,5 @@ target_link_libraries(aero-optical-flow ${OpenCV_LIBS})
 target_link_libraries(aero-optical-flow OpticalFlow)
 target_link_libraries(aero-optical-flow pthread)
 install(TARGETS aero-optical-flow DESTINATION bin)
+
+configure_file(aero-optical-flow.service.in aero-optical-flow.service)

@@ -1,0 +1,10 @@
+[Unit]
+Description=Aero optical flow
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/aero-optical-flow
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
