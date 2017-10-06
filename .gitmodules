@@ -1,6 +1,7 @@
 [submodule "modules/OpticalFlow"]
 	path = modules/OpticalFlow
-	url = https://github.com/zehortigoza/OpticalFlow.git
+	url = https://github.com/PX4/OpticalFlow.git
+	branch = static_lib
 [submodule "modules/mavlink_c"]
 	path = modules/mavlink_c
 	url = https://github.com/mavlink/c_library_v2.git
