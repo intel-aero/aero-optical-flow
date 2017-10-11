@@ -60,7 +60,7 @@ static struct {
 #define DEFAULT_FOCAL_LENGTH_X 216.6677
 #define DEFAULT_FOCAL_LENGTH_Y 216.2457
 
-#define DEFAULT_DEVICE_FILE "/dev/video2"
+#define DEFAULT_DEVICE_FILE "/dev/v4l/by-path/pci-0000:00:03.0-video-index2"
 #define DEFAULT_DEVICE_ID 1
 
 #define MAVLINK_TCP_IP "127.0.0.1"
