@@ -268,7 +268,8 @@ int Camera::init(int id, uint32_t w, uint32_t h, uint32_t pf)
 
 		// getting value set in hardware
 		ctrl.id = V4L2_CID_EXPOSURE_ABSOLUTE;
-		ret = xioctl(_fd, VIDIOC_G_CTRL, &ctrl);
+		//ret = xioctl(_fd, VIDIOC_G_CTRL, &ctrl);
+		ret = 0;
 		if (ret) {
 			ERROR("Getting exposure: %s", strerror(errno));
 			goto error;
@@ -286,7 +287,8 @@ int Camera::init(int id, uint32_t w, uint32_t h, uint32_t pf)
 
 		// getting value set in hardware
 		ctrl.id = V4L2_CID_GAIN;
-		ret = xioctl(_fd, VIDIOC_G_CTRL, &ctrl);
+		//ret = xioctl(_fd, VIDIOC_G_CTRL, &ctrl);
+		ret = 0;
 		if (ret) {
 			ERROR("Getting gain: %s", strerror(errno));
 			goto error;
@@ -401,7 +403,8 @@ int Camera::exposure_set(uint16_t value)
 
 	ctrl.id = V4L2_CID_EXPOSURE_ABSOLUTE;
 	ctrl.value = value;
-	ret = xioctl(_fd, VIDIOC_S_CTRL, &ctrl);
+	//ret = xioctl(_fd, VIDIOC_S_CTRL, &ctrl);
+	ret = 0;
 	if (ret) {
 		ERROR("Error setting exposure: %s", strerror(errno));
 		return ret;
@@ -427,7 +430,8 @@ int Camera::gain_set(uint8_t value)
 
 	ctrl.id = V4L2_CID_GAIN;
 	ctrl.value = value;
-	ret = xioctl(_fd, VIDIOC_S_CTRL, &ctrl);
+	//ret = xioctl(_fd, VIDIOC_S_CTRL, &ctrl);
+	ret = 0;
 	if (ret) {
 		ERROR("Error setting gain: %s", strerror(errno));
 		return ret;

@@ -44,7 +44,13 @@
 #include "log.h"
 #include "util.h"
 
-#define DEFAULT_PIXEL_FORMAT V4L2_PIX_FMT_YUV420
+// V4L2_PIX_FMT_RGB32
+// test CV_CAP_MODE_RGB
+// did not worked V4L2_PIX_FMT_RGB24
+// invalid formats: V4L2_PIX_FMT_JPEG, V4L2_PIX_FMT_SBGGR10
+// works: V4L2_PIX_FMT_YUV420
+// test: V4L2_PIX_FMT_RGB565
+#define DEFAULT_PIXEL_FORMAT V4L2_PIX_FMT_RGB565
 #define CAMERA_MSEC_TIMEOUT 100
 
 #define POLL_ERROR_EVENTS (POLLERR | POLLHUP | POLLNVAL)
@@ -61,7 +67,7 @@
 #define EXPOSURE_ABOSULUTE_MAX_VALUE 1727
 #define GAIN_CHANGE_THRESHOLD 15.0
 #define GAIN_ABOSULUTE_MAX_VALUE 127
-#define CAMERA_FPS_MIN 70
+#define CAMERA_FPS_MIN 15
 
 using namespace cv;
 
@@ -282,12 +288,20 @@ void Mainloop::camera_callback(const void *img, UNUSED size_t len, const struct 
 
 	pthread_mutex_lock(&_mainloop_lock);
 
-	Mat frame_gray = Mat(_camera->height, _camera->width, CV_8UC1);
+	//Mat frame_gray(_camera->height, _camera->width, CV_16UC1, (uchar*)img);
+
+	Mat frame_gray (_camera->height, _camera->width, CV_8UC1);// do not work CV_8UC3 or CV_8UC4
 	frame_gray.data = (uchar*)img;
 
+	Size size(800, 600);
+	Mat dest;
+	resize(frame_gray, dest, size);
+
 #if DEBUG_LEVEL
-	imshow(_window_name, frame_gray);
+	imshow(_window_name, dest);
 #endif
+	pthread_mutex_unlock(&_mainloop_lock);
+	return;
 
 	uint64_t img_time_us = timestamp->tv_usec + timestamp->tv_sec * USEC_PER_SEC;
 
