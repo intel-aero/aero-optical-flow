@@ -288,14 +288,16 @@ void Mainloop::camera_callback(const void *img, UNUSED size_t len, const struct 
 
 	pthread_mutex_lock(&_mainloop_lock);
 
-	//Mat frame_gray(_camera->height, _camera->width, CV_16UC1, (uchar*)img);
+	//Mat frame_gray (_camera->height, _camera->width, CV_8UC1);// do not work CV_8UC3 or CV_8UC4
+	//frame_gray.data = (uchar*)img;
 
-	Mat frame_gray (_camera->height, _camera->width, CV_8UC1);// do not work CV_8UC3 or CV_8UC4
-	frame_gray.data = (uchar*)img;
+	Mat imgbgr;
+	Mat frame_gray(_camera->height, _camera->width, CV_8UC2, (uchar*)img);
+	cvtColor(frame_gray, imgbgr, CV_BGR5652BGR);
 
 	Size size(800, 600);
 	Mat dest;
-	resize(frame_gray, dest, size);
+	resize(imgbgr, dest, size);
 
 #if DEBUG_LEVEL
 	imshow(_window_name, dest);
