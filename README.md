@@ -1,10 +1,6 @@
 # How to run it in Aero RTF kit
 
-Aero-optical-flow needs some changes in Aero Linux kernel that was not released yet as a stable image (1.5.1v), so you need to build the development image, to do so follow this instructions (https://github.com/intel-aero/meta-intel-aero/wiki/92-(References)-Embedded-development-with-Yocto).
-Among the changes in the development image it comes with aero-optical-flow binary and mavlink-router and PX4 Pro firmware running at a higher baud rate, this is also requirement to aero-optical-flow.
-
-After install the build image you need:
-- flash the Intel Aero image (https://github.com/intel-aero/meta-intel-aero/wiki/02-Initial-Setup#flashing-intel-aero-linux-distribution)
+- install Aero image v1.6 or newer (https://github.com/intel-aero/meta-intel-aero/wiki/02-Initial-Setup#flashing)
 - update the PX4 firmware to the one in image `aerofc-update.sh /etc/aerofc/px4/nuttx-aerofc-v1-default.px4`
 - install a lidar (https://docs.px4.io/en/flight_controller/intel_aero.html#connecting-a-lidar-lite-range-finder), it was only tested with Garmin Lidar‑Lite V3 but we plan to test with some other cheap options.
 - in QGroundControl change this parameters:
