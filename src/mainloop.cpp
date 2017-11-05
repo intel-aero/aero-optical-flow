@@ -135,6 +135,20 @@ void *Mainloop::camera_thread()
 	return NULL;
 }
 
+void Mainloop::_loop_rtps()
+{
+	pthread_mutex_init(&_mainloop_lock, NULL);
+	pthread_t thread;
+	_should_run = true;
+	if (pthread_create(&thread, NULL, _thread_callback, this)) {
+		ERROR("Unable to create a thread");
+		return;
+	}
+	while (_should_run) {
+	}
+	pthread_join(thread, NULL);
+}
+
 void Mainloop::_loop()
 {
 	Pollable *pollables[] = { _mavlink };
@@ -355,7 +369,22 @@ void Mainloop::camera_callback(const void *img, UNUSED size_t len, const struct 
 		pthread_mutex_unlock(&_mainloop_lock);
 		return;
 	}
-
+#ifdef RTPS
+	optical_flow_ st;
+	st.pixel_flow_x_integral(flow_y_ang);
+	st.pixel_flow_y_integral(-flow_x_ang);
+	st.gyro_x_rate_integral(gyro_data.x);
+	st.gyro_y_rate_integral(gyro_data.y);
+	st.gyro_z_rate_integral(gyro_data.z);
+	st.ground_distance_m(-1.0);
+	st.integration_timespan(dt_us);
+	st.time_since_last_sonar_update(_offset_timestamp_usec + img_time_us);
+	//st.m_frame_count_since_last_readout();
+	st.gyro_temperature(0);
+	st.sensor_id(0);
+	st.quality(flow_quality);
+	_of_pub->publish(&st);
+#else
 	mavlink_optical_flow_rad_t msg;
 	msg.time_usec = _offset_timestamp_usec + img_time_us;
 	msg.integration_time_us = dt_us;
@@ -371,6 +400,7 @@ void Mainloop::camera_callback(const void *img, UNUSED size_t len, const struct 
 	msg.quality = flow_quality;
 
 	_mavlink->optical_flow_rad_msg_write(&msg);
+#endif
 	pthread_mutex_unlock(&_mainloop_lock);
 }
 
@@ -379,7 +409,6 @@ static void _highres_imu_msg_callback(const mavlink_highres_imu_t *msg, void *da
 	Mainloop *mainloop = (Mainloop *)data;
 	mainloop->highres_imu_msg_callback(msg);
 }
-
 void Mainloop::highres_imu_msg_callback(const mavlink_highres_imu_t *msg)
 {
 	// Integrate
@@ -406,11 +435,17 @@ int Mainloop::init(const char *camera_device, int camera_id,
 		ERROR("No memory to allocate Camera");
 		return -1;
 	}
+#ifdef RTPS
+	_cmd_pub = new vehicle_command_Publisher();
+	_of_pub = new optical_flow_Publisher();
+	_sen_sub = new sensor_combined_Subscriber();
+#else
 	_mavlink = new Mavlink_TCP();
 	if (!_mavlink) {
 		ERROR("No memory to allocate Mavlink_TCP");
 		goto mavlink_memory_error;
 	}
+#endif
 	// TODO: load parameters from yaml file
 	_optical_flow = new OpticalFlowOpenCV(focal_length_x, focal_length_y, flow_output_rate, crop_width,
 			crop_height);
@@ -423,10 +458,18 @@ int Mainloop::init(const char *camera_device, int camera_id,
 		ERROR("Unable to initialize camera");
 		goto camera_init_error;
 	}
+#ifdef RTPS
+	if(_cmd_pub->init() && _of_pub->init() && _sen_sub->init()) {}
+	else {
+		ERROR("Unable to initialize Publisher/Suscriber");
+		goto mavlink_init_error;
+	}
+#else
 	if (_mavlink->init(mavlink_tcp_ip, mavlink_tcp_port)) {
 		ERROR("Unable to initialize Mavlink_TCP");
 		goto mavlink_init_error;
 	}
+#endif
 
 	return 0;
 
@@ -435,7 +478,13 @@ mavlink_init_error:
 camera_init_error:
 	delete _optical_flow;
 optical_memory_error:
+#ifdef RTPS
+	delete _cmd_pub;
+	delete _of_pub;
+	delete _sen_sub;
+#else
 	delete _mavlink;
+#endif
 mavlink_memory_error:
 	delete _camera;
 	return -1;
@@ -446,9 +495,18 @@ void Mainloop::shutdown()
 	_camera->shutdown();
 
 	delete _optical_flow;
-	delete _mavlink;
 	delete _camera;
-
+#ifdef RTPS
+	delete _cmd_pub;
+	delete _of_pub;
+	delete _sen_sub;
+	_cmd_pub = NULL;
+	_of_pub = NULL;
+	_sen_sub = NULL;
+#else
+	delete _mavlink;
+#endif
+	
 	_optical_flow = NULL;
 	_mavlink = NULL;
 	_camera = NULL;
@@ -457,7 +515,11 @@ void Mainloop::shutdown()
 int Mainloop::run()
 {
 	_camera->callback_set(_camera_callback, this);
+#ifdef RTPS
+	_sen_sub->highres_imu_msg_subscribe(_highres_imu_msg_callback, this);
+#else
 	_mavlink->highres_imu_msg_subscribe(_highres_imu_msg_callback, this);
+#endif
 
 	if (_camera->start()) {
 		ERROR("Unable to start camera streaming");
@@ -468,8 +530,11 @@ int Mainloop::run()
 	namedWindow(_window_name, WINDOW_AUTOSIZE);
 	startWindowThread();
 #endif
-
+#ifdef RTPS
+	_loop_rtps();
+#else
 	_loop();
+#endif
 
 #if DEBUG_LEVEL
 	destroyAllWindows();
