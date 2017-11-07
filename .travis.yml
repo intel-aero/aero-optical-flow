@@ -1,5 +1,6 @@
 language: cpp
 dist: trusty
+sudo: required
 matrix:
   include:
     - os: linux
@@ -17,7 +18,10 @@ before_script:
         - git submodule update --init --recursive
         - CXX="g++-6"
         - CC="gcc-6"
-
+        - git clone https://github.com/eProsima/Fast-RTPS
+        - mkdir Fast-RTPS/build && cd Fast-RTPS/build
+        - cmake -DTHIRDPARTY=ON .. && make && sudo make install && cd -
 script:
-        - mkdir build && cd build && cmake ..
-        - make -j
+        - mkdir build-mavlink && cd build-mavlink && cmake .. && make -j
+        - cd -
+        - mkdir build-rtps && cd build-rtps && cmake -DRTPS=ON .. && make -j
