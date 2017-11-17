@@ -1,6 +1,6 @@
 [![Build Status](https://travis-ci.org/intel-aero/aero-optical-flow.svg?branch=master)](https://travis-ci.org/intel-aero/aero-optical-flow)
 
-# How to run it in Aero RTF kit
+# How to run it on Intel (R) Aero RTF Drone
 
 - install Aero image v1.6 or newer (https://github.com/intel-aero/meta-intel-aero/wiki/02-Initial-Setup#flashing)
 - update the PX4 firmware to the one in image `aerofc-update.sh /etc/aerofc/px4/nuttx-aerofc-v1-default.px4`
