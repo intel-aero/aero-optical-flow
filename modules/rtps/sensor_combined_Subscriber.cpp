@@ -105,7 +105,7 @@ void sensor_combined_Subscriber::SubListener::onNewDataMessage(Subscriber* sub)
 		highres_imu.xgyro = msg.gyro_rad().at(0);
 		highres_imu.ygyro = msg.gyro_rad().at(1);
 		highres_imu.zgyro = msg.gyro_rad().at(2);
-		highres_imu.time_usec = m_info.sourceTimestamp.seconds*1000000 + m_info.sourceTimestamp.fraction * 1000000;
+		highres_imu.time_usec = msg.timestamp();
                 ++n_msg;
                 //std::cout << "Sample received, count=" << n_msg << std::endl;
                 has_msg = true;
@@ -131,6 +131,7 @@ sensor_combined_ sensor_combined_Subscriber::getMsg()
 {
     m_listener.has_msg = false;
     return m_listener.msg;
+
 }
 
 void sensor_combined_Subscriber::highres_imu_msg_subscribe(void(*callback)(const mavlink_highres_imu_t *msg, void *data), const void *data)

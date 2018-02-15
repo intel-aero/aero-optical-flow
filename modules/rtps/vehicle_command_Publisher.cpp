@@ -47,7 +47,7 @@
 #include <fastrtps/utils/eClock.h>
 
 #include "vehicle_command_Publisher.h"
-#define HIGHRES_IMU_INTERVAL_US 4000.0f 
+
 
 vehicle_command_Publisher::vehicle_command_Publisher() : mp_participant(nullptr), mp_publisher(nullptr) {}
 
@@ -79,7 +79,6 @@ bool vehicle_command_Publisher::init()
     if(mp_publisher == nullptr)
         return false;
     //std::cout << "Publisher created, waiting for Subscribers." << std::endl;
-    set_highres_rate(HIGHRES_IMU_INTERVAL_US);
     return true;
 }
 
@@ -129,22 +128,6 @@ void vehicle_command_Publisher::run()
             std::cout << "Command " << ch << " not recognized, please enter \"y/n\":";
         }
     }while(std::cin >> ch);
-}
-
-void vehicle_command_Publisher::set_highres_rate(float interval_us)
-{
-    
-    while(m_listener.n_matched == 0)
-    {
-        eClock::my_sleep(250); // Sleep 250 ms
-    }
-    vehicle_command_ st;
-    st.target_system() = 1;
-    st.target_component() = 1;
-    st.command() = 511; //MAV_CMD_SET_MESSAGE_INTERVAL
-    st.param1() = 105; //MAVLINK_MSG_ID_HIGHRES_IMU
-    st.param2() = interval_us;
-    mp_publisher->write(&st);
 }
 
 void vehicle_command_Publisher::publish(vehicle_command_* st)

@@ -59,7 +59,6 @@ public:
 private:
     Participant *mp_participant;
     Publisher *mp_publisher;
-    void set_highres_rate(float interval_us);
     
     class PubListener : public PublisherListener
     {
