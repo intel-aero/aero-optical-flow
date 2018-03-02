@@ -383,12 +383,20 @@ static void _highres_imu_msg_callback(const mavlink_highres_imu_t *msg, void *da
 void Mainloop::highres_imu_msg_callback(const mavlink_highres_imu_t *msg)
 {
 	// Integrate
-	const double t = (double)(msg->time_usec - _gyro_prev_timestamp) / (double)USEC_PER_SEC;
+	const double dt = (double)(msg->time_usec - _gyro_prev_timestamp) / (double)USEC_PER_SEC;
 
-	if (_gyro_prev_timestamp) {
-		_gyro_integrated.x += (msg->xgyro * t);
-		_gyro_integrated.y += (msg->ygyro * t);
-		_gyro_integrated.z += (msg->zgyro * t);
+	// protect against invalid gyro and timestamp data -> huge random values
+	const double max_dt = 0.05; // at least 20Hz
+	const double max_gyro = 20.0; // big enough value
+	if (_gyro_prev_timestamp && dt < max_dt && abs(msg->xgyro) < max_gyro
+		&& abs(msg->ygyro) < max_gyro && abs(msg->zgyro) < max_gyro) {
+		_gyro_integrated.x += (msg->xgyro * dt);
+		_gyro_integrated.y += (msg->ygyro * dt);
+		_gyro_integrated.z += (msg->zgyro * dt);
+#if DEBUG_LEVEL
+	} else {
+		DEBUG("Invalid gyro/timestamp data: gyro = (%f, %f, %f) dt = %f", msg->xgyro, msg->ygyro, msg->zgyro, dt);
+#endif
 	}
 	_gyro_prev_timestamp = msg->time_usec;
 
