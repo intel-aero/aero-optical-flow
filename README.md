@@ -3,8 +3,8 @@
 # How to run it on Intel (R) Aero RTF Drone
 
 - install Aero image v1.6 or newer (https://github.com/intel-aero/meta-intel-aero/wiki/02-Initial-Setup#flashing)
-- update the PX4 firmware to the one in image `aerofc-update.sh /etc/aerofc/px4/nuttx-aerofc-v1-default.px4`
-- install a lidar (https://docs.px4.io/en/flight_controller/intel_aero.html#connecting-a-lidar-lite-range-finder), it was only tested with Garmin Lidar‑Lite V3 but we plan to test with some other cheap options.
+- build and install the latest stable PX4(the PX4 firmware in the Aero image do not have the LeddarOne driver)
+- install a lidar, we recommend the LeddarOne(https://docs.px4.io/en/flight_controller/intel_aero.html) that can be connected to the telemetry port.
 - in QGroundControl change this parameters:
 	- EKF2_AID_MASK = 3 (use GPS + use optical flow)
 	- EKF2_HGT_MODE = 2 (range sensor)
