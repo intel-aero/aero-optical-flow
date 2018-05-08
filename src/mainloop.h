@@ -40,6 +40,11 @@
 #include "camera.h"
 #include "config.h"
 #include "mavlink_tcp.h"
+#ifdef RTPS
+#include <vehicle_command_Publisher.h>
+#include <sensor_combined_Subscriber.h>
+#include <optical_flow_Publisher.h>
+#endif
 
 using namespace cv;
 
@@ -76,6 +81,11 @@ private:
 	Camera *_camera;
 	OpticalFlowOpenCV *_optical_flow;
 	Mavlink_TCP *_mavlink;
+#ifdef RTPS
+	vehicle_command_Publisher *_cmd_pub;
+	optical_flow_Publisher *_of_pub;
+	sensor_combined_Subscriber *_sen_sub;
+#endif
 
 	pthread_mutex_t _mainloop_lock;
 
@@ -83,6 +93,7 @@ private:
 
 	void _signal_handlers_setup();
 	void _loop();
+	void _loop_rtps();
 
 	void _exposure_update(Mat frame, uint64_t timestamp);
 };
